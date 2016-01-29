@@ -1,7 +1,7 @@
 CC=g++
 CFLAGS=-c -Wall -Iincludes
 LDFLAGS=-lcurl -ljson-c -lstdc++
-SOURCES=main.cpp connection.cpp hue/hue.cpp hue/config.cpp hue/light.cpp hue/hub.cpp
+SOURCES=main.cpp connection.cpp hue/hue.cpp hue/config.cpp hue/light.cpp hue/hub.cpp hue/task.cpp hue/tasks/task_time.cpp
 OBJECTS=$(SOURCES:.cpp=.o)
 EXECUTABLE=huelights
 

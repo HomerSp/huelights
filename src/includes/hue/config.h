@@ -3,6 +3,8 @@
 
 #include <string>
 #include <vector>
+#include <map>
+#include <cstdlib>
 
 class HueConfigSection;
 
@@ -12,9 +14,11 @@ public:
 	~HueConfig();
 
 	HueConfigSection* getSection(const std::string& name, std::string key = "", std::string value = "") const;
+	const std::vector<HueConfigSection*> getSections(const std::string& name, std::string key = "", std::string value = "") const;
+
 	HueConfigSection* newSection(const std::string& name);
 
-	bool parse();
+	bool parse(bool& parseFailure);
 	bool write();
 
 private:
@@ -25,13 +29,15 @@ private:
 
 class HueConfigSection {
 public:
+	typedef std::map<std::string, std::string> KeyMap;
+
 	HueConfigSection(std::string name = "");
 
-	const std::vector<std::pair<std::string, std::string> >::const_iterator begin() const {
+	const KeyMap::const_iterator begin() const {
 		return mValues.begin();
 	}
 
-	const std::vector<std::pair<std::string, std::string> >::const_iterator end() const {
+	const KeyMap::const_iterator end() const {
 		return mValues.end();
 	}
 
@@ -43,13 +49,21 @@ public:
 
 	std::string value(const std::string &key) const;
 
+	bool boolValue(const std::string& key) const {
+		return value(key) == "true";
+	}
+
+	int intValue(const std::string &key) const {
+		return atoi(value(key).c_str());
+	}
+
 	void setValue(const std::string& key, const std::string& value);
 
 	bool parse(const std::string& content);
 
 private:
 	std::string mName;
-	std::vector<std::pair<std::string, std::string> > mValues;
+	std::map<std::string, std::string> mValues;
 }; 
 
 #endif //INCLUDES_HUE_CONFIG_H

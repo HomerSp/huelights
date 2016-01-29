@@ -11,12 +11,15 @@ class HubDevice;
 
 class HueLightState {
 public:
+	HueLightState();
 	HueLightState(HueLightState* state);
 	HueLightState(json_object* stateObj);
 
 	bool valid() const {
 		return mValid;
 	}
+
+	void copyTo(HueLightState* other);
 
 	bool on() const {
 		return mOn;
@@ -39,6 +42,9 @@ public:
 	}
 	void setBrightness(int brightness) {
 		mBrightness = brightness;
+	}
+	void setAlert(std::string alert) {
+		mAlert = alert;
 	}
 
 	bool operator==(const HueLightState& other) const {
@@ -83,7 +89,7 @@ public:
 
 		return mNewState;
 	}
-	std::string toJson() const;
+	json_object* toJson() const;
 	std::string toString() const;
 
 	bool operator==(const std::string id) const {

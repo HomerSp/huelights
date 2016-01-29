@@ -1,4 +1,6 @@
 #include <cstdio>
+#include <iostream>
+#include <fstream>
 #include <sstream>
 #include "hue/config.h"
 
@@ -30,13 +32,28 @@ HueConfigSection* HueConfig::getSection(const std::string& name, std::string key
 	return NULL;
 }
 
+const std::vector<HueConfigSection*> HueConfig::getSections(const std::string& name, std::string key, std::string value) const {
+	std::vector<HueConfigSection *> ret;
+	for(std::vector<HueConfigSection*>::const_iterator it = mSections.begin(); it != mSections.end(); ++it) {
+		if((*it)->name() != name) {
+			continue;
+		}
+
+		if(key.size() == 0 || (*it)->hasKey(key, value)) {
+			ret.push_back(*it);
+		}
+	}
+
+	return ret;
+}
+
 HueConfigSection* HueConfig::newSection(const std::string& name) {
 	HueConfigSection* section = new HueConfigSection(name);
 	mSections.push_back(section);
 	return section;
 }
 
-bool HueConfig::parse() {
+bool HueConfig::parse(bool& parseFailure) {
 	bool ret = false;
 
 	if(mSections.size() > 0) {
@@ -47,21 +64,21 @@ bool HueConfig::parse() {
 		mSections.clear();
 	}
 
-	FILE* file = fopen(mPath.c_str(), "r");
-	if(!file) {
+	std::ifstream file(mPath.c_str());
+	if(!file.good()) {
 		return false;
 	}
-
-	char buf[256];
 	std::string section = "";
-	while(!feof(file)) {
-		char* p = fgets(buf, 256, file);
-		if(feof(file) || buf[0] == '[') {
-			if(feof(file) && p != NULL && buf[0] != '[') {
-				section += std::string(buf);
-			}
+	while(file.good()) {
+		std::string buf = "";
+		std::getline(file, buf);
 
-			// Figure out what we need to do
+		bool haveSection = section.length() > 0;
+		if(buf.length() > 0 && ((!haveSection && buf[0] == '[') || (haveSection && buf[0] != '[' && buf[0] != '#'))) {
+			section += buf + '\n';
+		}
+
+		if(!file.good() || (haveSection && buf.length() > 0 && buf[0] == '[')) {
 			if(section.size() > 0) {
 				HueConfigSection* configSection = new HueConfigSection();
 				if(!configSection->parse(section)) {
@@ -70,33 +87,18 @@ bool HueConfig::parse() {
 				}
 
 				mSections.push_back(configSection);
-				section = "";
-			}
-
-			if(!feof(file)) {
-				section += std::string(buf);
-			} else {
-				if(p != NULL && buf[0] == '[') {
-					section += std::string(buf);
-
-					HueConfigSection* configSection = new HueConfigSection();
-					if(!configSection->parse(section)) {
-						ret = false;
-						break;
-					}
-
-					mSections.push_back(configSection);
+				if(file.good()) {
+					section = buf + '\n';
+				} else {
+					section = "";
 				}
-
 
 				ret = true;
 			}
-		} else {
-			section += std::string(buf);
 		}
 	}
 
-	fclose(file);
+	file.close();
 
 	if(!ret && mSections.size() > 0) {
 		for(size_t i = 0; i < mSections.size(); i++) {
@@ -106,27 +108,29 @@ bool HueConfig::parse() {
 		mSections.clear();
 	}
 
+	if(!ret) {
+		parseFailure = true;
+	}
+
 	return ret;
 }
 
 bool HueConfig::write() {
-	FILE* file = fopen(mPath.c_str(), "w+");
-	if(!file) {
+	std::ofstream file(mPath.c_str(), std::ios::trunc);
+	if(!file.good()) {
 		return false;
 	}
 
-	for(size_t i = 0; i < mSections.size(); i++) {
-		HueConfigSection* section = mSections[i];
-		fprintf(file, "[%s]\n", section->name().c_str());
-
-		std::vector<std::pair<std::string, std::string> >::const_iterator it;
-		for(it = section->begin(); it != section->end(); ++it) {
-			fprintf(file, "%s=%s\n", (*it).first.c_str(), (*it).second.c_str());
+	for(std::vector<HueConfigSection*>::const_iterator itSection = mSections.begin(); itSection != mSections.end(); ++itSection) {
+		file << "[" << (*itSection)->name() << "]\n";
+		for(HueConfigSection::KeyMap::const_iterator it = (*itSection)->begin(); it != (*itSection)->end(); ++it) {
+			file << (*it).first << "=" << (*it).second << "\n";
 		}
+
+		file << "\n";
 	}
 
-	fflush(file);
-	fclose(file);
+	file.close();
 
 	return true;
 }
@@ -138,34 +142,35 @@ HueConfigSection::HueConfigSection(std::string name)
 }
 
 bool HueConfigSection::hasKey(const std::string &key, std::string value) const {
-	for(size_t i = 0; i < mValues.size(); i++) {
-		if(mValues[i].first == key && (value.size() == 0 || mValues[i].second == value)) {
-			return true;
+	std::map<std::string, std::string>::const_iterator it = mValues.find(key);
+	if(it != mValues.end()) {
+		if(value.length() > 0 && it->second != value) {
+			return false;
 		}
+
+		return true;
 	}
 
 	return false;
 }
 
 std::string HueConfigSection::value(const std::string &key) const {
-	for(size_t i = 0; i < mValues.size(); i++) {
-		if(mValues[i].first == key) {
-			return mValues[i].second;
-		}
+	std::map<std::string, std::string>::const_iterator it = mValues.find(key);
+	if(it != mValues.end()) {
+		return it->second;
 	}
 
 	return "";
 }
 
 void HueConfigSection::setValue(const std::string& key, const std::string& value) {
-	for(size_t i = 0; i < mValues.size(); i++) {
-		if(mValues[i].first == key) {
-			mValues[i].second = value;
-			return;
-		}
+	std::map<std::string, std::string>::iterator it = mValues.find(key);
+	if(it != mValues.end()) {
+		it->second = value;
+		return;
 	}
 
-	mValues.push_back(std::make_pair(key, value));
+	mValues.insert(std::make_pair(key, value));
 }
 
 bool HueConfigSection::parse(const std::string& content) {
@@ -185,6 +190,10 @@ bool HueConfigSection::parse(const std::string& content) {
 	}
 
 	while(std::getline(iss, line)) {
+		if(line.length() > 0 && line[0] == '#') {
+			continue;
+		}
+
 		size_t pos = line.find('=');
 		if(line.size() > 0 && pos == std::string::npos) {
 			return false;
@@ -196,9 +205,7 @@ bool HueConfigSection::parse(const std::string& content) {
 			return false;
 		}
 
-		std::string key = line.substr(0, pos);
-		std::string value = line.substr(pos + 1);
-		mValues.push_back(std::make_pair(key, value));
+		mValues.insert(std::make_pair(line.substr(0, pos), line.substr(pos + 1)));
 	}
 
 	return true;

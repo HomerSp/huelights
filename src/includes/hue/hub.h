@@ -5,21 +5,35 @@
 #include <vector>
 #include "config.h"
 #include "light.h"
+#include "task.h"
 
 class HueLight;
+class HueTask;
 
 class HubDevice {
 public:
-	HubDevice(const std::string &id, const std::string &ip, const std::string &name, const HueConfig& config);
+	HubDevice(const std::string &id, const std::string &ip, const std::string &name, HueConfig& config);
+	~HubDevice();
 
-	bool authorize(bool& retry, HueConfig& config);
+	bool authorize(bool& retry);
+
 	bool updateLights();
+	bool updateTasks();
 
 	const std::vector<HueLight*> &lights() const {
 		return mLights;
 	}
 
-	HueLight* light(const std::string& id);
+	const std::vector<HueTask*> &tasks() const {
+		return mTasks;
+	}
+
+	HueConfig& config() {
+		return mConfig;
+	}
+
+	HueLight* light(const std::string& id) const;
+	HueTask* task(const std::string& id) const;
 
 	bool isAuthorized() const {
 		return mUser.size() > 0;
@@ -41,10 +55,12 @@ public:
 		return mUser;
 	}
 
-	std::string toJson() const;
+	json_object* toJson() const;
 	std::string toString() const;
 
 private:
+	HueConfig& mConfig;
+
 	std::string mID;
 	std::string mIp;
 	std::string mName;
@@ -52,6 +68,7 @@ private:
 	std::string mUser;
 
 	std::vector<HueLight*> mLights;
+	std::vector<HueTask*> mTasks;
 
 };
 

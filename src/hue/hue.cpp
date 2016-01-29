@@ -4,7 +4,7 @@
 #include "hue/hue.h"
 #include "connection.h"
 
-HubDevice* Hue::getHubDevice(const std::string& deviceID, const HueConfig& config) {
+HubDevice* Hue::getHubDevice(const std::string& deviceID, HueConfig& config) {
 	HubDevice* device = NULL;
 
 	json_object* pnpObj;
@@ -41,7 +41,7 @@ HubDevice* Hue::getHubDevice(const std::string& deviceID, const HueConfig& confi
 	return device;
 }
 
-bool Hue::getHubDevices(std::vector<HubDevice *> &devices, const HueConfig& config) {
+bool Hue::getHubDevices(std::vector<HubDevice *> &devices, HueConfig& config) {
 	json_object* pnpObj;
 	if(downloadJson("https://www.meethue.com/api/nupnp", &pnpObj)) {
 		for(int i = 0; i < json_object_array_length(pnpObj); i++) {
@@ -70,4 +70,4 @@ bool Hue::getHubDevices(std::vector<HubDevice *> &devices, const HueConfig& conf
 	}
 
 	return true;
-} 
+}

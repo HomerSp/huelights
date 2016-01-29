@@ -1,60 +1,333 @@
 #include <iostream>
 #include <cstdlib>
 #include <cstdio>
+#include <ctime>
 #include <unistd.h>
 
 #include "hue/hue.h"
 
+enum ArgCommand {
+	ArgCommandNone = 0,
+	ArgCommandAuthorize,
+	ArgCommandLight,
+	ArgCommandList,
+};
+
+enum ArgListType {
+	ArgListTypeNormal = 0,
+	ArgListTypeJson,
+};
+
 void printHelp() {
-	fprintf(stderr, "huelights\n");
-	fprintf(stderr, "	--config <file> - Specify the config file (defaults to /etc/huelights)\n");
-	fprintf(stderr, "	--hub <id> - Specify which hub you want to operate on\n");
-	fprintf(stderr, "	--light <id> - Specify which light you want to operate on\n");
-	fprintf(stderr, "\n");
-	fprintf(stderr, "	--authorize - Authorize a new hub, if you do not specify the device you will be prompted\n");
-	fprintf(stderr, "\n");
-	fprintf(stderr, "	--light-on - Turn on a light\n");
-	fprintf(stderr, "	--light-off - Turn off a light\n");
-	fprintf(stderr, "	--light-toggle - Toggle the state of a light\n");
-	fprintf(stderr, "	--light-brightness <brightness> - Set the brightness of a light\n");
-	fprintf(stderr, "\n");
-	fprintf(stderr, "	--json - Print the output below in json format\n");
-	fprintf(stderr, "	--list-hubs - List the available hubs on the network\n");
-	fprintf(stderr, "	--list-lights - List the lights associated with a specific hub\n");
-	fprintf(stderr, "					Requires --hub to be set\n");
+	std::cerr << "huelights [options] <command> [parameters]\n"
+	<< "Options" << "\n"
+	<< "\t" << "--help" << "\n"
+	<< "\t\t" << "Show this help text" << "\n"
+	<< "\t" << "--config <file>" << "\n"
+	<< "\t\t" << "Specify the config file (defaults to /etc/huelights)" << "\n"
+	<< "\t" << "--hub <id>" << "\n"
+	<< "\t\t" << "Specify which hub device you want to operate on" << "\n"
+	<< "\t" << "--light <id>" << "\n"
+	<< "\t\t" << "Specify which light you want to operate on" << "\n"
+	<< "\n"
+	<< "Light options" << "\n"
+	<< "\t" << "--brightness <brightness>" << "\n"
+	<< "\t\t" << "Set the brightness of a light" << "\n"
+	<< "\t\t" << "in the range 0-254 (where 0 is off and 254 is the brightest)" << "\n"
+	<< "\n"
+	<< "List options" << "\n"
+	<< "\t" << "--json" << "\n"
+	<< "\t\t" << "Output the list commands to json" << "\n"
+	<< "\n"
+	<< "Commands" << "\n"
+	<< "\t" << "authorize" << "\n"
+	<< "\t\t" << "Authorize a new hub device" << "\n"
+	<< "\t\t" << "if you do not specify the hub with --hub you will be prompted" << "\n"
+
+	<< "\t" << "light <on/off/toggle>" << "\n"
+	<< "\t\t" << "Change the state of a light" << "\n"
+	<< "\t" << "list <type>" << "\n"
+	<< "\t\t" << "<type> can be one of" << "\n"
+	<< "\t\t" << "hubs" << "\n"
+	<< "\t\t\t" << "List the available hubs on the network" << "\n"
+	<< "\t\t" << "lights" << "\n"
+	<< "\t\t\t" << "List the lights associated with a specific hub" << "\n"
+	<< "\t\t\t" << "Requires --hub to be set" << "\n"
+	<< "\t\t" << "tasks" << "\n"
+	<< "\t\t\t" << "List all configured tasks" << "\n";
 }
 
-bool authorizeDevice(HubDevice* device, HueConfig& config) {
-	printf("Authorizing device \"%s\"\n", device->name().c_str());
-	printf("Press the link button to continue...\n");
+bool runAuthorize(HueConfig& config, const std::string& hubID, const std::vector<std::string> &params, bool& showHelp) {
+	if(params.size() > 0) {
+		showHelp = true;
+		return false;
+	}
 
-	bool retry = true;
-	while(retry) {
-		if(device->authorize(retry, config)) {
-			printf("Device authorized!\n");
+	HubDevice* device = NULL;
+	if(hubID.length() > 0) {
+		device = Hue::getHubDevice(hubID, config);
+	}
+
+	std::vector<HubDevice* > devices;
+	if(device == NULL) {
+		if(Hue::getHubDevices(devices, config)) {
+			if(devices.size() > 1) {
+				std::cout << "Choose which device you want to authorize (0-" << (devices.size() - 1) << "):\n";
+				for(size_t i = 0; i < devices.size(); i++) {
+					std::cout << "[" << i << "] " << devices[i]->name() << " (" << devices[i]->ip() << ")\n";
+				}
+
+				int index = -1;
+
+				std::string line = "";
+				while(index == -1) {
+					std::getline(std::cin, line);
+
+					char* end;
+					index = strtol(line.c_str(), &end, 10);
+					if(*end || index < 0 || index >= (int)devices.size()) {
+						index = -1;
+						std::cerr << "Please enter a valid number:\n";
+					}
+				}
+				
+				device = devices[index];
+			}
+		}
+	}
+
+	if(device == NULL) {
+		return false;
+	}
+
+	std::cout << "Authorizing device " << device->name() << "\n";
+	std::cout << "Press the link button on the hub before the progress bar fills...\n";
+
+	std::cout << "[";
+	for(size_t i = 0; i < 20; i++) {
+		std::cout << " ";
+	}
+	std::cout << "]" << std::flush;
+
+	bool auth = false, retry = true;
+	size_t times = 0;
+	while(retry && times < 20) {
+		if((auth = device->authorize(retry))) {
+			std::cout << "Device authorized!\n";
 			break;
 		}
 
 		sleep(1);
+		times++;
+
+		std::cout << "\r[";
+		for(size_t i = 0; i < 20; i++) {
+			if(i <= times) {
+				std::cout << "#";
+			} else {
+				std::cout << " ";
+			}
+		}
+		std::cout << "]" << std::flush;
 	}
 
-	config.write();
+	if(times == 20) {
+		std::cout << "\n";
+	}
+
+	bool b = false;
+	if(times < 20) {
+		b = device->isAuthorized();
+		if(b) {
+			device->config().write();
+		}
+	}
+
+	for(std::vector<HubDevice*>::const_iterator it = devices.begin(); it != devices.end(); ++it) {
+		delete *it;
+	}
+
+	return b;
+}
+
+bool runLight(HueConfig& config, const std::string& hubID, const std::string& lightID, HueLightState& lightState, const std::vector<std::string> &params, bool& showHelp) {
+	if(params.size() != 1 || hubID.length() == 0 || lightID.length() == 0) {
+		showHelp = true;
+		return false;
+	}
+
+	showHelp = false;
+
+	HubDevice* device = Hue::getHubDevice(hubID, config);
+	if(device == NULL) {
+		std::cerr << "Failed to find device " << hubID << "\n";
+		return false;
+	}
+	
+	HueLight* light = device->light(lightID);
+	if(light == NULL) {
+		std::cerr << "Failed to find light " << lightID << "\n";
+
+		delete device;
+		return false;
+	}
+	
+	std::string state = params[0];
+	if(state == "on") {
+		light->newState()->setOn();
+	} else if(state == "off") {
+		light->newState()->setOn(false);
+	} else if(state == "toggle") {
+		light->newState()->toggle();
+	} else {
+		std::cerr << "Unknown light state " << state << "\n";
+
+		delete light;
+		delete device;
+		return false;
+	}
+
+	lightState.copyTo(light->newState());
+
+	bool b = light->write(*device);
+
+	delete light;
+	delete device;
+
+	return b;
+}
+
+bool runList(HueConfig& config, const std::string& hubID, const std::string& lightID, ArgListType listType, const std::vector<std::string> &params, bool& showHelp) {
+	showHelp = false;
+
+	if(params.size() != 1) {
+		showHelp = true;
+		return false;
+	}
+
+	std::string type = params[0];
+	if(type == "hubs") {
+		if(hubID.size() != 0 || lightID.size() != 0) {
+			showHelp = true;
+			return false;
+		}
+
+		std::vector<HubDevice* > devices;
+		if(!Hue::getHubDevices(devices, config)) {
+			std::cerr << "Failed to get devices\n";
+			return false;
+		}
+
+		switch(listType) {
+			case ArgListTypeNormal: {
+				for(std::vector<HubDevice*>::const_iterator it = devices.begin(); it != devices.end(); ++it) {
+					std::cout << (*it)->toString() << "\n\n";
+				}
+
+				break;
+			}
+			case ArgListTypeJson: {
+				json_object* arrObj = json_object_new_array();
+				for(std::vector<HubDevice*>::const_iterator it = devices.begin(); it != devices.end(); ++it) {
+					json_object_array_add(arrObj, (*it)->toJson());
+				}
+
+				std::cout << json_object_to_json_string_ext(arrObj, JSON_C_TO_STRING_PLAIN);
+				json_object_put(arrObj);
+
+				break;
+			}
+		}
+
+		for(std::vector<HubDevice*>::const_iterator it = devices.begin(); it != devices.end(); ++it) {
+			delete *it;
+		}
+	} else if(type == "lights") {
+		if(hubID.size() == 0 || lightID.size() != 0) {
+			showHelp = true;
+			return false;
+		}
+
+		HubDevice* device = Hue::getHubDevice(hubID, config);
+		if(device == NULL) {
+			std::cerr << "Failed to find device " << hubID << "\n";
+			return false;
+		}
+
+		switch(listType) {
+			case ArgListTypeNormal: {
+				for(std::vector<HueLight*>::const_iterator it = device->lights().begin(); it != device->lights().end(); ++it) {
+					std::cout << (*it)->toString() << "\n\n";
+				}
+
+				break;
+			}
+			case ArgListTypeJson: {
+				json_object* arrObj = json_object_new_array();
+				for(std::vector<HueLight*>::const_iterator it = device->lights().begin(); it != device->lights().end(); ++it) {
+					json_object_array_add(arrObj, (*it)->toJson());
+				}
+
+				std::cout << json_object_to_json_string_ext(arrObj, JSON_C_TO_STRING_PLAIN);
+				json_object_put(arrObj);
+
+				break;
+			}
+		}
+	} else if(type == "tasks") {
+		if(hubID.size() == 0 || lightID.size() != 0) {
+			showHelp = true;
+			return false;
+		}
+
+		std::vector<HubDevice* > devices;
+		if(!Hue::getHubDevices(devices, config)) {
+			std::cerr << "Failed to get devices\n";
+			return false;
+		}
+
+		switch(listType) {
+			case ArgListTypeNormal: {
+				for(std::vector<HubDevice*>::const_iterator it = devices.begin(); it != devices.end(); ++it) {
+					for(std::vector<HueTask*>::const_iterator taskIt = (*it)->tasks().begin(); taskIt != (*it)->tasks().end(); ++taskIt) {
+						std::cout << (*taskIt)->toString() << "\n\n";
+					}
+				}
+
+				break;
+			}
+			case ArgListTypeJson: {
+				json_object* arrObj = json_object_new_array();
+				for(std::vector<HubDevice*>::const_iterator it = devices.begin(); it != devices.end(); ++it) {
+					for(std::vector<HueTask*>::const_iterator taskIt = (*it)->tasks().begin(); taskIt != (*it)->tasks().end(); ++taskIt) {
+						json_object_array_add(arrObj, (*taskIt)->toJson());
+					}
+				}
+
+				std::cout << json_object_to_json_string_ext(arrObj, JSON_C_TO_STRING_PLAIN);
+				json_object_put(arrObj);
+
+				break;
+			}
+		}
+
+		for(std::vector<HubDevice*>::const_iterator it = devices.begin(); it != devices.end(); ++it) {
+			delete *it;
+		}
+	}
 
 	return true;
 }
 
 int main(int argc, char** argv) {
-	std::string config = "/etc/huelights";
-	std::string hubID = "";
-	std::string lightID = "";
+	std::string config = "/etc/huelights", hubID = "", lightID = "";
+	ArgListType listType = ArgListTypeNormal;
+	HueLightState lightState;
 
-	bool authorize = false;
+	ArgCommand argCommand = ArgCommandNone;
+	std::vector<std::string> argParams;
 
-	bool lightOn = false, lightOff = false, lightToggle = false;
-	int lightBrightness = -1;
-
-	bool jsonOutput = false;
-	bool listHubs = false, listLights = false;
+	srand(time(NULL));
 
 	if(argc == 1) {
 		printHelp();
@@ -63,7 +336,15 @@ int main(int argc, char** argv) {
 
 	for(int i = 1; i < argc; i++) {
 		std::string arg = argv[i];
-		if(arg == "--config") {
+		if(argCommand != ArgCommandNone) {
+			argParams.push_back(arg);
+			continue;
+		}
+
+		if(arg == "--help") {
+			printHelp();
+			return -1;
+		} else if(arg == "--config") {
 			if(i + 1 >= argc) {
 				printHelp();
 				return -1;
@@ -71,7 +352,7 @@ int main(int argc, char** argv) {
 
 			config = std::string(argv[i + 1]);
 			i++;
-		} else if(arg == "--device") {
+		} else if(arg == "--hub") {
 			if(i + 1 >= argc) {
 				printHelp();
 				return -1;
@@ -87,156 +368,76 @@ int main(int argc, char** argv) {
 
 			lightID = std::string(argv[i + 1]);
 			i++;
-		} else if(arg == "--authorize") {
-			authorize = true;
-		} else if(arg == "--light-on") {
-			lightOn = true;
-		} else if(arg == "--light-off") {
-			lightOff = true;
-		} else if(arg == "--light-toggle") {
-			lightToggle = true;
-		} else if(arg == "--light-brightness") {
+		} else if(arg == "--brightness") {
 			if(i + 1 >= argc) {
 				printHelp();
 				return -1;
 			}
 
-			lightBrightness = atoi(argv[i + 1]);
+			lightState.setBrightness(atoi(argv[i + 1]));
 			i++;
 		} else if(arg == "--json") {
-			jsonOutput = true;
-		} else if(arg == "--list-hubs") {
-			listHubs = true;
-		} else if(arg == "--list-lights") {
-			listLights = true;
+			listType = ArgListTypeJson;
+		} else if(arg == "authorize") {
+			argCommand = ArgCommandAuthorize;
+		} else if(arg == "light") {
+			argCommand = ArgCommandLight;
+		} else if(arg == "list") {
+			argCommand = ArgCommandList;
 		} else {
-			fprintf(stderr, "Unknown option \"%s\"\n", argv[i]);
+			std::cerr << "Unknown option " << argv[i] << "\n";
 			printHelp();
 			return -1;
 		}
 	}
 
-	if(listLights && hubID.size() == 0) {
-		printHelp();
-		return -1;
-	}
-
-	if(lightID.size() == 0 && (lightOn || lightOff || lightToggle || lightBrightness >= 0)) {
-		printHelp();
-		return -1;
-	}
-
 	HueConfig hueConfig(config);
-	if(!hueConfig.parse()) {
-		fprintf(stderr, "Failed to parse config: %s\n", config.c_str());
-	}
 
-	bool listDevices = true;
-	if(hubID.size() > 0) {
-		HubDevice* device = Hue::getHubDevice(hubID, hueConfig);
-		if(device != NULL) {
-			if(authorize) {
-				if(!authorizeDevice(device, hueConfig)) {
-					fprintf(stderr, "Could not authorize device\n");
-				}
-			} else if(listLights) {
-				device->updateLights();
-
-				const std::vector<HueLight*>& lights = device->lights();
-				if(jsonOutput) {
-					printf("[");
-
-					for(size_t i = 0; i < lights.size(); i++) {
-						printf("%s", lights.at(i)->toJson().c_str());
-
-						if(i + 1 < lights.size()) {
-							printf(",");
-						}
-					}
-
-					printf("]");
-				} else {
-					for(size_t i = 0; i < lights.size(); i++) {
-						printf("%s\n", lights.at(i)->toString().c_str());
-					}
-				}
-			} else if(lightOn || lightOff || lightToggle || lightBrightness >= 0) {
-				device->updateLights();
-
-				HueLight* light = device->light(lightID);
-				if(light != NULL) {
-					if(lightOn) {
-						light->newState()->setOn();
-					} else if(lightOff) {
-						light->newState()->setOn(false);
-					} else if(lightToggle) {
-						light->newState()->toggle();
-					}
-
-					if(lightBrightness >= 0) {
-						light->newState()->setBrightness(lightBrightness);
-					}
-
-					light->write(*device);
-				} else {
-					fprintf(stderr, "Could not find light %s\n", lightID.c_str());
-				}
-			}
-
-			listDevices = false;
-
-			delete device;
+	bool parseFailure = false;
+	if(!hueConfig.parse(parseFailure)) {
+		if(parseFailure) {
+			std::cerr << "Failed to parse config file " << config << ", failing...\n";
+			return -1;
 		}
 	}
 
-	if(listDevices) {
-		std::vector<HubDevice* > devices;
-		if(Hue::getHubDevices(devices, hueConfig)) {
-			if(authorize) {
-				size_t index = -1;
-				if(devices.size() > 1) {
-					printf("Choose which device you want to authorize:\n");
-					for(unsigned int i = 0; i < devices.size(); i++) {
-						printf("[%d] %s (%s)\n", i, devices[i]->name().c_str(), devices[i]->ip().c_str());
-					}
-
-					unsigned char c = getchar();
-					if(c >= '0' && c <= '9') {
-						if(c - (unsigned)'0' < devices.size()) {
-							index = (c - '0');
-						}
-					}
+	bool showHelp = false;
+	switch(argCommand) {
+		case ArgCommandAuthorize:
+			if(!runAuthorize(hueConfig, hubID, argParams, showHelp)) {
+				if(showHelp) {
+					printHelp();
+					return -1;
 				}
 
-				if(index < devices.size()) {
-					if(!authorizeDevice(devices[index], hueConfig)) {
-						fprintf(stderr, "Could not authorize device\n");
-					}
-				}
-			} else if(listHubs) {
-				if(jsonOutput) {
-					printf("[");
-					for(unsigned int i = 0; i < devices.size(); i++) {
-						printf("%s", devices[i]->toJson().c_str());
-
-						if(i + 1 < devices.size()) {
-							printf(",");
-						}
-					}
-					printf("]\n");
-				} else {
-					for(unsigned int i = 0; i < devices.size(); i++) {
-						printf("%s\n", devices[i]->toString().c_str());
-					}
-				}
+				std::cerr << "Authorization command failed\n";
 			}
 
-			for(unsigned int i = 0; i < devices.size(); i++) {
-				delete devices[i];
+			break;
+		case ArgCommandLight:
+			if(!runLight(hueConfig, hubID, lightID, lightState, argParams, showHelp)) {
+				if(showHelp) {
+					printHelp();
+					return -1;
+				}
+
+				std::cerr << "Light command failed\n";
 			}
 
-			devices.clear();
-		}
+			break;
+		case ArgCommandList:
+			if(!runList(hueConfig, hubID, lightID, listType, argParams, showHelp)) {
+				if(showHelp) {
+					printHelp();
+					return -1;
+				}
+
+				std::cerr << "List command failed\n";
+			}
+
+			break;
+		default:
+			break;
 	}
 
 	return 0;

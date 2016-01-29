@@ -3,8 +3,18 @@
 #include "hue/light.h" 
 #include "connection.h"
 
-HueLightState::HueLightState(HueLightState* state)
-	: mValid(true),
+HueLightState::HueLightState() :
+	mValid(true),
+	mOn(false),
+	mBrightness(-1),
+	mAlert(""),
+	mReachable(false)
+{
+
+}
+
+HueLightState::HueLightState(HueLightState* state) :
+	mValid(true),
 	mOn(state->mOn),
 	mBrightness(state->mBrightness),
 	mAlert(state->mAlert),
@@ -24,8 +34,6 @@ HueLightState::HueLightState(HueLightState* state)
 HueLightState::HueLightState(json_object* stateObj)
 	: mValid(false)
 {
-	json_object *strObj;
-
 	JSON_GET(stateObj, "on", boolean, mOn);
 	JSON_GET(stateObj, "bri", int, mBrightness);
 	JSON_GET(stateObj, "alert", string, mAlert);
@@ -34,35 +42,31 @@ HueLightState::HueLightState(json_object* stateObj)
 	mValid = true;
 }
 
+void HueLightState::copyTo(HueLightState* other) {
+	if(other == NULL) {
+		return;
+	}
+
+	// Don't copy the on state
+	if(mBrightness >= 0) {
+		other->setBrightness(mBrightness);
+	}
+	if(mAlert.length() > 0) {
+		other->setAlert(mAlert);
+	}
+}
+
 HueLight::HueLight(json_object* lightObj, int index)
 	: mValid(false),
 	mNewState(NULL),
 	mIndex(index)
 {	
-	json_object *strObj;
-
-	if(!json_object_object_get_ex(lightObj, "type", &strObj)) {
-		return;
-	}
-
-	mType = json_object_get_string(strObj);
-
-	if(!json_object_object_get_ex(lightObj, "name", &strObj)) {
-		return;
-	}
-	mName = json_object_get_string(strObj);
-
-	json_object_object_get_ex(lightObj, "modelid", &strObj);
-	mModel = json_object_get_string(strObj);
-
-	json_object_object_get_ex(lightObj, "manufacturername", &strObj);
-	mManufacturer = json_object_get_string(strObj);
-
-	json_object_object_get_ex(lightObj, "uniqueid", &strObj);
-	mID = json_object_get_string(strObj);
-
-	json_object_object_get_ex(lightObj, "swversion", &strObj);
-	mVersion = json_object_get_string(strObj);
+	JSON_GET(lightObj, "type", string, mType);
+	JSON_GET(lightObj, "name", string, mName);
+	JSON_GET(lightObj, "modelid", string, mModel);
+	JSON_GET(lightObj, "manufacturername", string, mManufacturer);
+	JSON_GET(lightObj, "uniqueid", string, mID);
+	JSON_GET(lightObj, "swversion", string, mVersion);
 
 	json_object* stateObj;
 	json_object_object_get_ex(lightObj, "state", &stateObj);
@@ -110,7 +114,7 @@ bool HueLight::write(const HubDevice& device) {
 	}
 
 	if(!success) {
-		fprintf(stderr, "Failed to set some parameters\n");
+		std::cerr << "Failed to set some parameters for light " << mID << "\n";
 	}
 
 	json_object_put(output);
@@ -119,7 +123,7 @@ bool HueLight::write(const HubDevice& device) {
 	return true;
 }
 
-std::string HueLight::toJson() const {
+json_object* HueLight::toJson() const {
 	json_object* obj = json_object_new_object();
 	json_object_object_add(obj, "index", json_object_new_int(mIndex));
 	json_object_object_add(obj, "id", json_object_new_string(mID.c_str()));
@@ -127,10 +131,7 @@ std::string HueLight::toJson() const {
 	json_object_object_add(obj, "on", json_object_new_boolean(state()->on()));
 	json_object_object_add(obj, "brightness", json_object_new_int(state()->brightness()));
 	json_object_object_add(obj, "reachable", json_object_new_boolean(state()->reachable()));
-
-	std::string ret = json_object_to_json_string_ext(obj, JSON_C_TO_STRING_PLAIN);
-	json_object_put(obj);
-	return ret;
+	return obj;
 }
 
 std::string HueLight::toString() const {
@@ -141,7 +142,7 @@ std::string HueLight::toString() const {
 		<< "name=" << mName << "\n"
 		<< "on=" << ((state()->on())?"true":"false") << "\n"
 		<< "brightness=" << state()->brightness() << "\n"
-		<< "reachable=" << ((state()->reachable())?"true":"false") << "\n";
+		<< "reachable=" << ((state()->reachable())?"true":"false");
 
 	return ret.str();
 }

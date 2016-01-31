@@ -57,7 +57,7 @@ bool HubDevice::authorize(bool& retry) {
 	json_object* inputObj = json_object_new_object();
 	json_object_object_add(inputObj, "devicetype", json_object_new_string("huelights#openwrt"));
 
-	/*json_object* authObj;
+	json_object* authObj;
 	if(!postJson("http://" + mIp + "/api", inputObj, &authObj)) {
 		json_object_put(inputObj);
 		return false;
@@ -83,13 +83,9 @@ bool HubDevice::authorize(bool& retry) {
 				ret = true;
 			}
 		}
-	}*/
+	}
 
-	mUser = "75e260da479efe32658adffb2b68dc94";
-	ret = false;
-	retry = true;
-
-	//json_object_put(authObj);
+	json_object_put(authObj);
 	json_object_put(inputObj);
 
 	if(ret) {

@@ -17,6 +17,7 @@ HueTask::HueTask(const HueConfigSection &config, const HubDevice& device)
 	mID = config.value("id");
 	mName = config.value("name");
 	mType = config.value("type");
+	mMethod = config.value("method");
 
 	std::string lights = config.value("lights");
 	size_t bpos = 0, epos = 0;

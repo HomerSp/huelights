@@ -12,10 +12,6 @@ class HueLight;
 
 class HueTask {
 public:
-	enum Type {
-		TypeTime = 0
-	};
-
 	virtual ~HueTask() {}
 
 	static HueTask* fromConfig(const HueConfigSection &config, const HubDevice& device);
@@ -26,8 +22,14 @@ public:
 		return mValid;
 	}
 
+	const std::string& id() const {
+		return mID;
+	}
 	const std::string &name() const {
 		return mName;
+	}
+	const std::string& method() const {
+		return mMethod;
 	}
 
 	virtual json_object* toJson() const;
@@ -45,14 +47,15 @@ protected:
 
 	void generateID();
 
-private:
 	bool mValid;
 
+private:
 	const HubDevice& mDevice;
 
 	std::string mID;
 	std::string mName;
 	std::string mType;
+	std::string mMethod;
 
 	std::vector<HueLight*> mLights;
 };

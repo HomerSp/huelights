@@ -5,6 +5,7 @@
 #include <vector>
 #include <map>
 #include <cstdlib>
+#include <ctime>
 #include "hue/task.h"
 
 class HueTask;
@@ -12,7 +13,8 @@ class HueTask;
 class HueTaskTime : public HueTask {
 public:
 	enum Method {
-		MethodDateTime = 0
+		MethodNone = 0,
+		MethodDateTime,
 	};
 
 	HueTaskTime(const HueConfigSection &config, const HubDevice& device);
@@ -23,6 +25,9 @@ protected:
 	virtual void toJsonInt(json_object* obj) const;
 	virtual void toStringInt(std::ostringstream& s) const;
 	
+private:
+	Method mTaskMethod;
+	struct tm mTime;
 }; 
 
 #endif //INCLUDES_HUE_TASKS_TASK_TIME_H

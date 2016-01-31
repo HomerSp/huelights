@@ -191,7 +191,6 @@ bool runLight(HueConfig& config, const std::string& hubID, const std::string& li
 
 	bool b = light->write(*device);
 
-	delete light;
 	delete device;
 
 	return b;

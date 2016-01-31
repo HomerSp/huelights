@@ -1,3 +1,4 @@
+#include <sstream>
 #include "hue/tasks/task_time.h" 
 
 HueTaskTime::HueTaskTime(const HueConfigSection &config, const HubDevice& device)
@@ -30,5 +31,5 @@ void HueTaskTime::toJsonInt(json_object* obj) const {
 }
 
 void HueTaskTime::toStringInt(std::ostringstream& s) const {
-
+	s << "\ntime=" << (1900 + mTime.tm_year) << "-" << (1 + mTime.tm_mon) << "-" << mTime.tm_mday << " " << mTime.tm_hour << ":" << mTime.tm_min;
 }

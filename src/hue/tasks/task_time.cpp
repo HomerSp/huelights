@@ -27,9 +27,15 @@ bool HueTaskTime::execute(bool& fatalError) {
 }
 
 void HueTaskTime::toJsonInt(json_object* obj) const {
+	char buf[80];
+	strftime(buf, 80, "%Y-%m-%d %H:%M", &mTime);
 
+	json_object_object_add(obj, "time", json_object_new_string(buf));
 }
 
 void HueTaskTime::toStringInt(std::ostringstream& s) const {
-	s << "\ntime=" << (1900 + mTime.tm_year) << "-" << (1 + mTime.tm_mon) << "-" << mTime.tm_mday << " " << mTime.tm_hour << ":" << mTime.tm_min;
+	char buf[80];
+	strftime(buf, 80, "%Y-%m-%d %H:%M", &mTime);
+
+	s << "\ntime=" << buf;
 }

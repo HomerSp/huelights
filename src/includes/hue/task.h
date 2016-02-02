@@ -22,6 +22,10 @@ public:
 		return mValid;
 	}
 
+	bool enabled() const {
+		return mEnabled;
+	}
+
 	const std::string& id() const {
 		return mID;
 	}
@@ -30,6 +34,10 @@ public:
 	}
 	const std::string& method() const {
 		return mMethod;
+	}
+
+	void setEnabled(bool enabled) {
+		mEnabled = enabled;
 	}
 
 	virtual json_object* toJson() const;
@@ -52,6 +60,7 @@ protected:
 private:
 	const HubDevice& mDevice;
 
+	bool mEnabled;
 	std::string mID;
 	std::string mName;
 	std::string mType;

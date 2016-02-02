@@ -47,13 +47,21 @@ public:
 		return mName;
 	}
 
-	std::string value(const std::string &key) const;
+	std::string value(const std::string &key, std::string def = "") const;
 
-	bool boolValue(const std::string& key) const {
+	bool boolValue(const std::string& key, bool def = false) const {
+		if(!hasKey(key)) {
+			return def;
+		}
+
 		return value(key) == "true";
 	}
 
-	int intValue(const std::string &key) const {
+	int intValue(const std::string &key, int def = 0) const {
+		if(!hasKey(key)) {
+			return def;
+		}
+
 		return atoi(value(key).c_str());
 	}
 

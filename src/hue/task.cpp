@@ -7,18 +7,19 @@
 HueTask::HueTask(const HueConfigSection &config, const HubDevice& device)
 	: mValid(false),
 	mDevice(device),
-	mID(""),
-	mName("")
+	mEnabled(false)
 {
-	if(!config.hasKey("id") || !config.hasKey("name")) {
+	if(!config.hasKey("id") || !config.hasKey("name") || !config.hasKey("type") || !config.hasKey("method")) {
 		return;
 	}
 
+	mEnabled = config.boolValue("enabled", mEnabled);
 	mID = config.value("id");
 	mName = config.value("name");
 	mType = config.value("type");
 	mMethod = config.value("method");
 
+	// lights should be a comma-separated list of light id's
 	std::string lights = config.value("lights");
 	size_t bpos = 0, epos = 0;
 	do {

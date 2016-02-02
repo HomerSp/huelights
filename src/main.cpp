@@ -54,7 +54,8 @@ void printHelp() {
 	<< "\t\t\t" << "List the lights associated with a specific hub" << "\n"
 	<< "\t\t\t" << "Requires --hub to be set" << "\n"
 	<< "\t\t" << "tasks" << "\n"
-	<< "\t\t\t" << "List all configured tasks" << "\n";
+	<< "\t\t\t" << "List all configured tasks" << "\n"
+	<< "\t\t\t" << "You can use --hub to specify the device, and --light for the light" << "\n";
 }
 
 bool runAuthorize(HueConfig& config, const std::string& hubID, const std::vector<std::string> &params, bool& showHelp) {
@@ -135,10 +136,10 @@ bool runAuthorize(HueConfig& config, const std::string& hubID, const std::vector
 		std::cout << "\n";
 	}
 
-	bool b = false;
+	bool ret = false;
 	if(times < 20) {
-		b = device->isAuthorized();
-		if(b) {
+		ret = device->isAuthorized();
+		if(ret) {
 			device->config().write();
 		}
 	}
@@ -147,7 +148,7 @@ bool runAuthorize(HueConfig& config, const std::string& hubID, const std::vector
 		delete *it;
 	}
 
-	return b;
+	return ret;
 }
 
 bool runLight(HueConfig& config, const std::string& hubID, const std::string& lightID, HueLightState& lightState, const std::vector<std::string> &params, bool& showHelp) {
@@ -274,15 +275,20 @@ bool runList(HueConfig& config, const std::string& hubID, const std::string& lig
 			}
 		}
 	} else if(type == "tasks") {
-		if(hubID.size() == 0 || lightID.size() != 0) {
-			showHelp = true;
-			return false;
-		}
-
 		std::vector<HubDevice* > devices;
-		if(!Hue::getHubDevices(devices, config)) {
-			std::cerr << "Failed to get devices\n";
-			return false;
+		if(hubID.size() > 0) {
+			HubDevice* device = Hue::getHubDevice(hubID, config);
+			if(device == NULL) {
+				std::cerr << "Failed to get device " << hubID << "\n";
+				return false;
+			}
+
+			devices.push_back(device);
+		} else {
+			if(!Hue::getHubDevices(devices, config)) {
+				std::cerr << "Failed to get devices\n";
+				return false;
+			}
 		}
 
 		switch(listType) {

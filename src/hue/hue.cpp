@@ -36,6 +36,8 @@ HubDevice* Hue::getHubDevice(const std::string& deviceID, HueConfig& config) {
 		}
 
 		json_object_put(pnpObj);
+	} else {
+		return NULL;
 	}
 
 	return device;
@@ -67,6 +69,8 @@ bool Hue::getHubDevices(std::vector<HubDevice *> &devices, HueConfig& config) {
 		devices.push_back(new HubDevice("0000000000000000", "127.0.0.1", "TEST", config));
 
 		json_object_put(pnpObj);
+	} else {
+		return false;
 	}
 
 	return true;

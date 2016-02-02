@@ -154,13 +154,13 @@ bool HueConfigSection::hasKey(const std::string &key, std::string value) const {
 	return false;
 }
 
-std::string HueConfigSection::value(const std::string &key) const {
+std::string HueConfigSection::value(const std::string &key, std::string def) const {
 	std::map<std::string, std::string>::const_iterator it = mValues.find(key);
 	if(it != mValues.end()) {
 		return it->second;
 	}
 
-	return "";
+	return def;
 }
 
 void HueConfigSection::setValue(const std::string& key, const std::string& value) {

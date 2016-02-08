@@ -2,6 +2,8 @@
 #include <cstdio>
 #include <sstream>
 #include "hue/hub.h"
+#include "hue/light.h"
+#include "hue/task.h"
 #include "connection.h"
 
 HubDevice::HubDevice(const std::string &id, const std::string &ip, const std::string &name, HueConfig& config)
@@ -141,7 +143,7 @@ bool HubDevice::updateTasks() {
 
 	const std::vector<HueConfigSection*> sections = mConfig.getSections("Task", "hub", mID);
 	for(std::vector<HueConfigSection*>::const_iterator it = sections.begin(); it != sections.end(); ++it) {
-		HueTask* task = HueTask::fromConfig(*(*it), *this);
+		HueTask* task = HueTask::fromConfig(mConfig, *(*it), *this);
 		if(task == NULL || !task->valid()) {
 			continue;
 		}

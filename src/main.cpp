@@ -8,6 +8,7 @@
 
 enum ArgCommand {
 	ArgCommandNone = 0,
+	ArgCommandDaemon,
 	ArgCommandAuthorize,
 	ArgCommandLight,
 	ArgCommandList,
@@ -30,22 +31,31 @@ void printHelp() {
 	<< "\t" << "--light <id>" << "\n"
 	<< "\t\t" << "Specify which light you want to operate on" << "\n"
 	<< "\n"
+
 	<< "Light options" << "\n"
 	<< "\t" << "--brightness <brightness>" << "\n"
 	<< "\t\t" << "Set the brightness of a light" << "\n"
 	<< "\t\t" << "in the range 0-254 (where 0 is off and 254 is the brightest)" << "\n"
 	<< "\n"
+
 	<< "List options" << "\n"
 	<< "\t" << "--json" << "\n"
 	<< "\t\t" << "Output the list commands to json" << "\n"
 	<< "\n"
+
 	<< "Commands" << "\n"
+
+	<< "\t" << "daemon" << "\n"
+	<< "\t\t" << "Run in daemon mode" << "\n"
+	<< "\t\t" << "This will run all tasks in the config file" << "\n"
+
 	<< "\t" << "authorize" << "\n"
 	<< "\t\t" << "Authorize a new hub device" << "\n"
-	<< "\t\t" << "if you do not specify the hub with --hub you will be prompted" << "\n"
+	<< "\t\t" << "If you do not specify the hub with --hub you will be prompted" << "\n"
 
 	<< "\t" << "light <on/off/toggle>" << "\n"
 	<< "\t\t" << "Change the state of a light" << "\n"
+
 	<< "\t" << "list <type>" << "\n"
 	<< "\t\t" << "<type> can be one of" << "\n"
 	<< "\t\t" << "hubs" << "\n"
@@ -56,6 +66,46 @@ void printHelp() {
 	<< "\t\t" << "tasks" << "\n"
 	<< "\t\t\t" << "List all configured tasks" << "\n"
 	<< "\t\t\t" << "You can use --hub to specify the device, and --light for the light" << "\n";
+}
+
+bool runDaemon(HueConfig& config, const std::vector<std::string> &params, bool& showHelp) {
+	if(params.size() > 0) {
+		showHelp = true;
+		return false;
+	}
+
+	std::vector<HubDevice* > devices;
+	if(Hue::getHubDevices(devices, config)) {
+		if(devices.size() >= 1) {
+			bool error = false;
+			while(!error) {
+				// Calculate when the next minute starts
+				time_t start = time(NULL);
+
+				time_t end = start;
+				struct tm* endTime = std::localtime(&end);
+				++endTime->tm_min;
+				endTime->tm_sec = 0;
+				end = mktime(endTime);
+
+				// Sleep until that time
+				uint64_t diff = difftime(end, start);
+				sleep(diff);
+
+				for(std::vector<HubDevice*>::const_iterator deviceIt = devices.begin(); deviceIt != devices.end(); ++deviceIt) {
+					for(std::vector<HueTask*>::const_iterator it = (*deviceIt)->tasks().begin(); it != (*deviceIt)->tasks().end(); ++it) {
+						(*it)->execute(error);
+					}
+				}
+			}
+		}
+	}
+
+	for(std::vector<HubDevice*>::const_iterator it = devices.begin(); it != devices.end(); ++it) {
+		delete *it;
+	}
+
+	return true;
 }
 
 bool runAuthorize(HueConfig& config, const std::string& hubID, const std::vector<std::string> &params, bool& showHelp) {
@@ -161,13 +211,18 @@ bool runLight(HueConfig& config, const std::string& hubID, const std::string& li
 
 	HubDevice* device = Hue::getHubDevice(hubID, config);
 	if(device == NULL) {
-		std::cerr << "Failed to find device " << hubID << "\n";
+		std::cerr << "Error: Failed to find device " << hubID << "\n";
 		return false;
 	}
-	
+
+	if(!device->isAuthorized()) {
+		std::cerr << "Error: Device " << hubID << " is not authorized!\n";
+		return false;
+	}
+
 	HueLight* light = device->light(lightID);
 	if(light == NULL) {
-		std::cerr << "Failed to find light " << lightID << "\n";
+		std::cerr << "Error: Failed to find light " << lightID << "\n";
 
 		delete device;
 		return false;
@@ -181,7 +236,7 @@ bool runLight(HueConfig& config, const std::string& hubID, const std::string& li
 	} else if(state == "toggle") {
 		light->newState()->toggle();
 	} else {
-		std::cerr << "Unknown light state " << state << "\n";
+		std::cerr << "Error: Unknown light state " << state << "\n";
 
 		delete light;
 		delete device;
@@ -214,7 +269,7 @@ bool runList(HueConfig& config, const std::string& hubID, const std::string& lig
 
 		std::vector<HubDevice* > devices;
 		if(!Hue::getHubDevices(devices, config)) {
-			std::cerr << "Failed to get devices\n";
+			std::cerr << "Error: Failed to get devices\n";
 			return false;
 		}
 
@@ -250,7 +305,12 @@ bool runList(HueConfig& config, const std::string& hubID, const std::string& lig
 
 		HubDevice* device = Hue::getHubDevice(hubID, config);
 		if(device == NULL) {
-			std::cerr << "Failed to find device " << hubID << "\n";
+			std::cerr << "Error: Failed to find device " << hubID << "\n";
+			return false;
+		}
+
+		if(!device->isAuthorized()) {
+			std::cerr << "Error: Device " << hubID << " is not authorized!\n";
 			return false;
 		}
 
@@ -279,14 +339,14 @@ bool runList(HueConfig& config, const std::string& hubID, const std::string& lig
 		if(hubID.size() > 0) {
 			HubDevice* device = Hue::getHubDevice(hubID, config);
 			if(device == NULL) {
-				std::cerr << "Failed to get device " << hubID << "\n";
+				std::cerr << "Error: Failed to get device " << hubID << "\n";
 				return false;
 			}
 
 			devices.push_back(device);
 		} else {
 			if(!Hue::getHubDevices(devices, config)) {
-				std::cerr << "Failed to get devices\n";
+				std::cerr << "Error: Failed to get devices\n";
 				return false;
 			}
 		}
@@ -383,6 +443,8 @@ int main(int argc, char** argv) {
 			i++;
 		} else if(arg == "--json") {
 			listType = ArgListTypeJson;
+		} else if(arg == "daemon") {
+			argCommand = ArgCommandDaemon;
 		} else if(arg == "authorize") {
 			argCommand = ArgCommandAuthorize;
 		} else if(arg == "light") {
@@ -390,7 +452,7 @@ int main(int argc, char** argv) {
 		} else if(arg == "list") {
 			argCommand = ArgCommandList;
 		} else {
-			std::cerr << "Unknown option " << argv[i] << "\n";
+			std::cerr << "Error: Unknown option " << argv[i] << "\n";
 			printHelp();
 			return -1;
 		}
@@ -401,46 +463,61 @@ int main(int argc, char** argv) {
 	bool parseFailure = false;
 	if(!hueConfig.parse(parseFailure)) {
 		if(parseFailure) {
-			std::cerr << "Failed to parse config file " << config << ", failing...\n";
+			std::cerr << "Warning: Failed to parse config file " << config << ", continuing without using a config file...\n";
 			return -1;
 		}
 	}
 
 	bool showHelp = false;
 	switch(argCommand) {
-		case ArgCommandAuthorize:
+		case ArgCommandDaemon: {
+			if(!runDaemon(hueConfig, argParams, showHelp)) {
+				if(showHelp) {
+					printHelp();
+					return -1;
+				}
+
+				std::cerr << "Error: Daemon command failed\n";
+			}
+
+			break;
+		}
+		case ArgCommandAuthorize: {
 			if(!runAuthorize(hueConfig, hubID, argParams, showHelp)) {
 				if(showHelp) {
 					printHelp();
 					return -1;
 				}
 
-				std::cerr << "Authorization command failed\n";
+				std::cerr << "Error: Authorization command failed\n";
 			}
 
 			break;
-		case ArgCommandLight:
+		}
+		case ArgCommandLight: {
 			if(!runLight(hueConfig, hubID, lightID, lightState, argParams, showHelp)) {
 				if(showHelp) {
 					printHelp();
 					return -1;
 				}
 
-				std::cerr << "Light command failed\n";
+				std::cerr << "Error: Light command failed\n";
 			}
 
 			break;
-		case ArgCommandList:
+		}
+		case ArgCommandList: {
 			if(!runList(hueConfig, hubID, lightID, listType, argParams, showHelp)) {
 				if(showHelp) {
 					printHelp();
 					return -1;
 				}
 
-				std::cerr << "List command failed\n";
+				std::cerr << "Error: List command failed\n";
 			}
 
 			break;
+		}
 		default:
 			break;
 	}

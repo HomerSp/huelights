@@ -17,7 +17,7 @@ public:
 		MethodDateTime,
 	};
 
-	HueTaskTime(const HueConfigSection &config, const HubDevice& device);
+	HueTaskTime(const HueConfigSection &taskConfig, const HueConfigSection &stateConfig, const HueConfigSection &triggerConfig, const HubDevice& device);
 
 	virtual bool execute(bool& fatalError);
 
@@ -26,6 +26,8 @@ protected:
 	virtual void toStringInt(std::ostringstream& s) const;
 	
 private:
+	static std::map<std::string, Method> sSupportedMethods;
+
 	Method mTaskMethod;
 	struct tm mTime;
 }; 

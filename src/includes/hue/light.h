@@ -11,12 +11,22 @@ class HubDevice;
 
 class HueLightState {
 public:
+	enum StateSet {
+		StateSetPower = 0x01,
+		StateSetBrightness = 0x02,
+		StateSetAlert = 0x04,
+	};
+
 	HueLightState();
 	HueLightState(HueLightState* state);
 	HueLightState(json_object* stateObj);
 
 	bool valid() const {
 		return mValid;
+	}
+
+	bool isSet(StateSet state) const {
+		return (mStates & state) != 0;
 	}
 
 	void copyTo(HueLightState* other);
@@ -36,19 +46,23 @@ public:
 
 	void setOn(bool on = true) {
 		mOn = on;
+		mStates |= StateSetPower;
+
 	}
 	void toggle() {
-		mOn = !mOn;
+		setOn(!mOn);
 	}
 	void setBrightness(int brightness) {
 		mBrightness = brightness;
+		mStates |= StateSetBrightness;
 	}
 	void setAlert(std::string alert) {
 		mAlert = alert;
+		mStates |= StateSetAlert;
 	}
 
 	bool operator==(const HueLightState& other) const {
-		return mOn == other.mOn && mBrightness == other.mBrightness;
+		return mStates == 0;
 	}
 
 	bool operator!=(const HueLightState& other) const {
@@ -57,6 +71,8 @@ public:
 
 private:
 	bool mValid;
+
+	int mStates;
 
 	bool mOn;
 	int mBrightness;
@@ -72,6 +88,10 @@ public:
 
 	bool valid() const {
 		return mValid;
+	}
+
+	const std::string& id() const {
+		return mID;
 	}
 
 	const std::string &name() const {

@@ -3,9 +3,8 @@
 
 #include <iostream>
 #include <vector>
+#include <json-c/json.h>
 #include "config.h"
-#include "light.h"
-#include "task.h"
 
 class HueLight;
 class HueTask;

@@ -9,12 +9,13 @@
 
 class HubDevice;
 class HueLight;
+class HueLightState;
 
 class HueTask {
 public:
 	virtual ~HueTask() {}
 
-	static HueTask* fromConfig(const HueConfigSection &config, const HubDevice& device);
+	static HueTask* fromConfig(const HueConfig& config, const HueConfigSection &taskConfig, const HubDevice& device);
 
 	virtual bool execute(bool& fatalError) = 0;
 
@@ -32,9 +33,6 @@ public:
 	const std::string &name() const {
 		return mName;
 	}
-	const std::string& method() const {
-		return mMethod;
-	}
 
 	void setEnabled(bool enabled) {
 		mEnabled = enabled;
@@ -48,12 +46,14 @@ public:
 	}
 
 protected:
-	HueTask(const HueConfigSection &config, const HubDevice& device);
+	HueTask(const HueConfigSection &taskConfig, const HueConfigSection &stateConfig, const HubDevice& device);
 
 	virtual void toJsonInt(json_object* obj) const = 0;
 	virtual void toStringInt(std::ostringstream& s) const = 0;
 
 	void generateID();
+
+	bool trigger();
 
 	bool mValid;
 
@@ -64,9 +64,11 @@ private:
 	std::string mID;
 	std::string mName;
 	std::string mType;
-	std::string mMethod;
 
 	std::vector<HueLight*> mLights;
+
+	HueLightState mState;
+	bool mStateToggle;
 };
 
 #endif //INCLUDES_HUE_TASK_H

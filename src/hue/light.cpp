@@ -5,6 +5,7 @@
 
 HueLightState::HueLightState() :
 	mValid(true),
+	mStates(0),
 	mOn(false),
 	mBrightness(-1),
 	mAlert(""),
@@ -15,6 +16,7 @@ HueLightState::HueLightState() :
 
 HueLightState::HueLightState(HueLightState* state) :
 	mValid(true),
+	mStates(state->mStates),
 	mOn(state->mOn),
 	mBrightness(state->mBrightness),
 	mAlert(state->mAlert),
@@ -47,11 +49,13 @@ void HueLightState::copyTo(HueLightState* other) {
 		return;
 	}
 
-	// Don't copy the on state
-	if(mBrightness >= 0) {
+	if((mStates & StateSetPower) != 0) {
+		other->setOn(mOn);
+	}
+	if((mStates & StateSetBrightness) != 0) {
 		other->setBrightness(mBrightness);
 	}
-	if(mAlert.length() > 0) {
+	if((mStates & StateSetAlert) != 0) {
 		other->setAlert(mAlert);
 	}
 }
@@ -76,16 +80,23 @@ HueLight::HueLight(json_object* lightObj, int index)
 }
 
 bool HueLight::write(const HubDevice& device) {
+	if(mNewState == NULL) {
+		return false;
+	}
+
 	if(*state() == *newState()) {
 		return false;
 	}
 
 	json_object* obj = json_object_new_object();
-	if(state()->on() != newState()->on()) {
+	if(newState()->isSet(HueLightState::StateSetPower)) {
 		json_object_object_add(obj, "on", json_object_new_boolean(newState()->on()));
 	}
-	if(state()->brightness() != newState()->brightness()) {
+	if(newState()->isSet(HueLightState::StateSetBrightness)) {
 		json_object_object_add(obj, "bri", json_object_new_int(newState()->brightness()));
+	}
+	if(newState()->isSet(HueLightState::StateSetAlert)) {
+		json_object_object_add(obj, "alert", json_object_new_string(newState()->alert().c_str()));
 	}
 
 	std::ostringstream url;
@@ -119,6 +130,12 @@ bool HueLight::write(const HubDevice& device) {
 
 	json_object_put(output);
 	json_object_put(obj);
+
+	// The light should now have the new parameters, so copy the new state object to the old one.
+	HueLightState* tmpState = mState;
+	mState = mNewState;
+	delete tmpState;
+	mNewState = NULL;
 
 	return true;
 }

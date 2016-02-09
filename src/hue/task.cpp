@@ -3,6 +3,7 @@
 #include <iomanip>
 #include "hue/task.h" 
 #include "hue/tasks/task_time.h"
+#include "utils.h"
 
 HueTask::HueTask(const HueConfigSection &taskConfig, const HueConfigSection &stateConfig, const HubDevice& device)
 	: mValid(false),
@@ -20,27 +21,19 @@ HueTask::HueTask(const HueConfigSection &taskConfig, const HueConfigSection &sta
 	mType = taskConfig.value("type");
 
 	// lights should be a comma-separated list of light id's
-	std::string lights = taskConfig.value("lights");
-	size_t bpos = 0, epos = 0;
-	do {
-		epos = lights.find(',', bpos);
-		if(epos == std::string::npos && bpos < lights.length()) {
-			epos = lights.length();
+	std::set<std::string> lightIDs;
+	commaListToSet(taskConfig.value("lights"), lightIDs);
+
+	for(std::set<std::string>::iterator it = lightIDs.begin(); it != lightIDs.end(); ++it) {
+		HueLight* light = device.light(*it);
+		if(light != NULL) {
+			mLights.push_back(light);
+		} else {
+			std::cerr << "Task (" << mID << ") Failed to find light " << *it << ", please check your configuration!\n";
+			return;
 		}
 
-		std::string lightID = lights.substr(bpos, epos-bpos);
-		if(lightID.length() > 0) {
-			HueLight* light = device.light(lightID);
-			if(light != NULL) {
-				mLights.push_back(light);
-			} else {
-				std::cerr << "Task (" << mID << ") Failed to find light " << lightID << ", please check your configuration!\n";
-				return;
-			}
-		}
-
-		bpos = epos + 1;
-	} while(epos != std::string::npos && bpos < lights.length());
+	}
 
 	if(stateConfig.hasKey("status")) {
 		std::string status = stateConfig.value("status");
@@ -65,12 +58,12 @@ HueTask* HueTask::fromConfig(const HueConfig& config, const HueConfigSection &ta
 	std::string id = taskConfig.value("id");
 	std::string type = taskConfig.value("type");
 
-	HueConfigSection *stateConfig = config.getSection("Task State", "task", id);
+	HueConfigSection *stateConfig = config.getSection("Task " + id + " State");
 	if(stateConfig == NULL) {
 		return NULL;
 	}
 
-	HueConfigSection *triggerConfig = config.getSection("Task Trigger", "task", id);
+	HueConfigSection *triggerConfig = config.getSection("Task " + id + " Trigger");
 	if(triggerConfig == NULL) {
 		return NULL;
 	}
@@ -100,13 +93,13 @@ void HueTask::generateID() {
 
 bool HueTask::trigger() {
 	for(std::vector<HueLight*>::const_iterator it = mLights.begin(); it != mLights.end(); ++it) {
-		if(!mStateToggle) {
-			(*it)->newState()->setOn(mState.on());
-		} else {
+		mState.copyTo((*it)->newState());
+
+		if(mStateToggle) {
+			(*it)->newState()->setOn((*it)->state()->on());
 			(*it)->newState()->toggle();
 		}
 
-		mState.copyTo((*it)->newState());
 		(*it)->write(mDevice);
 	}
 

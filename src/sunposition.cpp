@@ -9,28 +9,28 @@ static const double J2000 = 2451545;
 static const double J0 = 0.0009;
 
 static const double rad  = M_PI / 180.0f;
-static const double e = rad * 23.4397f; // obliquity of the Earth
+static const double obliquity = rad * 23.4397f; // obliquity of the Earth
 
-static double declination(double l, double b)    {
-	return asin(sin(b) * cos(e) + cos(b) * sin(e) * sin(l));
+static double declination(double elng, double b)    {
+	return asin(sin(b) * cos(obliquity) + cos(b) * sin(obliquity) * sin(elng));
 }
 
-static double solarMeanAnomaly(double d) {
-	return rad * (357.5291f + 0.98560028f * d);
+static double solarMeanAnomaly(double transit) {
+	return rad * (357.5291f + 0.98560028f * transit);
 }
 
-static double eclipticLongitude(double M) {
-    double C = rad * (1.9148f * sin(M) + 0.02f * sin(2.0f * M) + 0.0003f * sin(3.0f * M)); // equation of center
+static double eclipticLongitude(double mean) {
+    double C = rad * (1.9148f * sin(mean) + 0.02f * sin(2.0f * mean) + 0.0003f * sin(3.0f * mean)); // equation of center
     double P = rad * 102.9372f; // perihelion of the Earth
 
-    return M + C + P + M_PI;
+    return mean + C + P + M_PI;
 }
 
 static double toJulian(time_t date) {
 	return date / daySec - 0.5f + J1970;
 }
-static time_t fromJulian(double j)  {
-	return (j + 0.5f - J1970) * daySec;
+static time_t fromJulian(double julian)  {
+	return (julian + 0.5f - J1970) * daySec;
 }
 static double toDays(time_t date) {
 	return toJulian(date) - J2000;

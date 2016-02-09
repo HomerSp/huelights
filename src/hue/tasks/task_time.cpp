@@ -33,7 +33,7 @@ HueTaskTime::HueTaskTime(const HueConfigSection &taskConfig, const HueConfigSect
 			if (!strptime(triggerConfig.value("time").c_str(), "%Y-%m-%d %H:%M", &mTime)) {
 				HueTask::mValid = false;
 				return;
-		    }
+			}
 
 			break;
 		}
@@ -46,25 +46,21 @@ HueTaskTime::HueTaskTime(const HueConfigSection &taskConfig, const HueConfigSect
 			} else if (!strptime(timeStr.c_str(), "%H:%M", &mTime)) {
 				HueTask::mValid = false;
 				return;
-		    }
+			}
 
-		    if(triggerConfig.hasKey("position")) {
+			if(triggerConfig.hasKey("position")) {
 				std::vector<std::string> position;
 				commaListToVector(triggerConfig.value("position"), position);
 
 				mPosition.first = atof(position.at(0).c_str());
 				mPosition.second = atof(position.at(1).c_str());
-		    }
+			}
 
-		    if(triggerConfig.hasKey("days")) {
+			if(triggerConfig.hasKey("days")) {
 				std::set<std::string> repeat;
 				commaListToSet(triggerConfig.value("days"), repeat);
-		    	
-				if(repeat.find("all") != repeat.end()) {
-					for(uint32_t i = 0; i < 7; i++) {
-						mRepeatDays.insert(i);
-					}
-				} else {
+
+				if(repeat.find("all") == repeat.end()) {
 					static std::string days[] = {"sun", "mon", "tue", "wed", "thu", "fri", "sat"};
 
 					for(std::set<std::string>::iterator it = repeat.begin(); it != repeat.end(); ++it) {
@@ -75,11 +71,9 @@ HueTaskTime::HueTaskTime(const HueConfigSection &taskConfig, const HueConfigSect
 						}
 					}
 				}
-		    } else {
-		    	for(uint32_t i = 0; i < 7; i++) {
-	    			mRepeatDays.insert(i);
-	    		}
-		    }
+			}
+
+			updateTrigger(time(NULL));
 		}
 		default: {
 			break;
@@ -89,44 +83,42 @@ HueTaskTime::HueTaskTime(const HueConfigSection &taskConfig, const HueConfigSect
 
 bool HueTaskTime::execute(bool& fatalError) {
 	time_t now;
-    time(&now);
+	time(&now);
 
-    int64_t diff = -1;
+	int64_t diff = -1;
 	if(mTime.tm_year > 0) {
 		diff = difftime(now, mktime(&mTime));
 	}
 
-    switch(mTaskMethod) {
-    	case MethodFixed: {
-    		if(diff >= 0 && diff < 60) {
-		    	std::cout << "TRIGGER!\n";
+	switch(mTaskMethod) {
+		case MethodFixed: {
+			if(diff >= 0 && diff < 60) {
+				std::cout << "TRIGGER!\n";
 				trigger();
-		    }
+			}
 
-    		break;
-    	}
-    	case MethodRecurring: {
-    		// We need to re-calculate when to trigger the next alarm.
-    		if(mTime.tm_year == 0 || diff >= 0) {
-				updateTrigger(now, &diff);
-		    }
-    		
-    		if(diff >= 0 && diff < 60) {
-		    	std::cout << "TRIGGER!\n";
+			break;
+		}
+		case MethodRecurring: {
+			// Update the task time, then trigger the task.
+			if(diff >= 0 && diff < 60) {
+				updateTrigger(now);
+
+				std::cout << "TRIGGER!\n";
 				trigger();
-		    }
+			}
 
-    		break;
-    	}
-    	default: {
-    		break;
-    	}
-    }
+			break;
+		}
+		default: {
+			break;
+		}
+	}
  
 	return true;
 }
 
-void HueTaskTime::updateTrigger(time_t now, int64_t* diff) {
+void HueTaskTime::updateTrigger(time_t now) {
 	if(mTaskMethod != MethodRecurring) {
 		return;
 	}
@@ -144,7 +136,7 @@ void HueTaskTime::updateTrigger(time_t now, int64_t* diff) {
 	if(mRepeatDays.size() > 0) {
 		// Two weeks ahead should be enough to find a valid date (probably not necessary, but it doesn't matter).
 		for(int i = 0; i < 14; i++) {
-			if(mRepeatDays.find(mTime.tm_wday) != mRepeatDays.end()) {
+			if(mRepeatDays.size() == 0 || mRepeatDays.find(mTime.tm_wday) != mRepeatDays.end()) {
 				if(mTimeSun != SunNone) {
 					std::pair<time_t, time_t> sunPosition;
 					SunPosition::getTimes(sunPosition, mktime(&mTime), mPosition.first, mPosition.second);
@@ -160,14 +152,8 @@ void HueTaskTime::updateTrigger(time_t now, int64_t* diff) {
 					mTime.tm_min = sunTime->tm_min;
 				}
 
-				// If we have just started the program, diff will be -1, and won't trigger, even if the next minute is a match.
-				// Work around this by setting diff to diff2 when diff2 is 0 and diff is unset.
-				int64_t diff2 = difftime(now, mktime(&mTime));
-				if(diff2 < 0 || (diff != NULL && diff2 == 0 && *diff < 0)) {
-					if(diff != NULL && *diff < 0) {
-						*diff = diff2;
-					}
-
+				int64_t diff = difftime(now, mktime(&mTime));
+				if(diff <= 0) {
 					break;
 				}
 

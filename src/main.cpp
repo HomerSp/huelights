@@ -74,35 +74,45 @@ static bool runDaemon(HueConfig& config, const std::vector<std::string> &params,
 		return false;
 	}
 
-	std::vector<HubDevice* > devices;
-	if(Hue::getHubDevices(devices, config)) {
-		if(devices.size() >= 1) {
-			bool error = false;
-			while(!error) {
-				// Calculate when the next minute starts
-				time_t start = time(NULL);
 
-				time_t end = start;
-				struct tm* endTime = std::localtime(&end);
-				++endTime->tm_min;
-				endTime->tm_sec = 0;
-				end = mktime(endTime);
+	bool error = false;
+	while(!error) {
+		// Calculate when the next minute starts
+		time_t start = time(NULL);
 
-				// Sleep until that time
-				uint64_t diff = difftime(end, start);
-				sleep(diff);
+		time_t end = start;
+		struct tm* endTime = std::localtime(&end);
+		++endTime->tm_min;
+		endTime->tm_sec = 0;
+		end = mktime(endTime);
 
-				for(std::vector<HubDevice*>::const_iterator deviceIt = devices.begin(); deviceIt != devices.end(); ++deviceIt) {
-					for(std::vector<HueTask*>::const_iterator it = (*deviceIt)->tasks().begin(); it != (*deviceIt)->tasks().end(); ++it) {
-						(*it)->execute(error);
-					}
-				}
+		// Sleep until that time
+		uint64_t diff = difftime(end, start);
+		sleep(diff);
+
+		std::vector<HubDevice* > devices;
+		if(!Hue::getHubDevices(devices, config)) {
+			continue;
+		}
+
+		for(std::vector<HubDevice*>::const_iterator deviceIt = devices.begin(); deviceIt != devices.end(); ++deviceIt) {
+			for(std::vector<HueTask*>::const_iterator it = (*deviceIt)->tasks().begin(); it != (*deviceIt)->tasks().end(); ++it) {
+				(*it)->execute(error);
 			}
 		}
-	}
 
-	for(std::vector<HubDevice*>::const_iterator it = devices.begin(); it != devices.end(); ++it) {
-		delete *it;
+		for(std::vector<HubDevice*>::const_iterator it = devices.begin(); it != devices.end(); ++it) {
+			delete *it;
+		}
+
+		bool parseFailure = false;
+		if(!config.parse(parseFailure)) {
+			if(parseFailure) {
+				std::cerr << "Failed to parse config file!\n";
+			} else {
+				std::cerr << "Failed to read config file!\n";
+			}
+		}
 	}
 
 	return true;

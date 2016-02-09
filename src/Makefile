@@ -6,7 +6,7 @@ OBJECTS=$(SOURCES:.cpp=.o)
 EXECUTABLE=huelights
 
 all: $(SOURCES) $(EXECUTABLE)
-    
+
 $(EXECUTABLE): $(OBJECTS) 
 	$(CC) $(OBJECTS) $(LDFLAGS) -o $@
 

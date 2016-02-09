@@ -27,7 +27,7 @@ static size_t putBuffer(char *stream, size_t size, size_t nmemb, std::vector<cha
 }
 
 static int writer(char *data, size_t size, size_t nmemb,
-                  std::string *writerData)
+				  std::string *writerData)
 {
 	if (writerData == NULL)
 		return 0;

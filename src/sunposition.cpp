@@ -11,7 +11,7 @@ static const double J0 = 0.0009;
 static const double rad  = M_PI / 180.0f;
 static const double obliquity = rad * 23.4397f; // obliquity of the Earth
 
-static double declination(double elng, double b)    {
+static double declination(double elng, double b)	{
 	return asin(sin(b) * cos(obliquity) + cos(b) * sin(obliquity) * sin(elng));
 }
 
@@ -20,10 +20,10 @@ static double solarMeanAnomaly(double transit) {
 }
 
 static double eclipticLongitude(double mean) {
-    double C = rad * (1.9148f * sin(mean) + 0.02f * sin(2.0f * mean) + 0.0003f * sin(3.0f * mean)); // equation of center
-    double P = rad * 102.9372f; // perihelion of the Earth
+	double C = rad * (1.9148f * sin(mean) + 0.02f * sin(2.0f * mean) + 0.0003f * sin(3.0f * mean)); // equation of center
+	double P = rad * 102.9372f; // perihelion of the Earth
 
-    return mean + C + P + M_PI;
+	return mean + C + P + M_PI;
 }
 
 static double toJulian(time_t date) {
@@ -53,30 +53,30 @@ static double hourAngle(double h, double phi, double d) {
 
 static double getSetJ(double h, double lw, double phi, double dec, double n, double M, double L) {
 
-    double w = hourAngle(h, phi, dec),
-        a = approxTransit(w, lw, n);
+	double w = hourAngle(h, phi, dec),
+		a = approxTransit(w, lw, n);
 
-    return solarTransitJ(a, M, L);
+	return solarTransitJ(a, M, L);
 }
 
 bool SunPosition::getTimes(std::pair<time_t, time_t>& times, time_t date, double lat, double lng) {
 	double lw = rad * -lng;
-    double phi = rad * lat;
+	double phi = rad * lat;
 
-    double d = toDays(date);
-    double n = julianCycle(d, lw);
-    double ds = approxTransit(0, lw, n);
+	double d = toDays(date);
+	double n = julianCycle(d, lw);
+	double ds = approxTransit(0, lw, n);
 
-    double M = solarMeanAnomaly(ds);
-    double L = eclipticLongitude(M);
-    double dec = declination(L, 0);
+	double M = solarMeanAnomaly(ds);
+	double L = eclipticLongitude(M);
+	double dec = declination(L, 0);
 
-    double Jnoon = solarTransitJ(ds, M, L);
+	double Jnoon = solarTransitJ(ds, M, L);
 
-    double Jset = getSetJ(-0.833f * rad, lw, phi, dec, n, M, L);
-    double Jrise = Jnoon - (Jset - Jnoon);
+	double Jset = getSetJ(-0.833f * rad, lw, phi, dec, n, M, L);
+	double Jrise = Jnoon - (Jset - Jnoon);
 
-    times = std::make_pair<time_t, time_t>(fromJulian(Jrise), fromJulian(Jset));
+	times = std::make_pair<time_t, time_t>(fromJulian(Jrise), fromJulian(Jset));
 
-    return true;
+	return true;
 }

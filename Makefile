@@ -29,6 +29,9 @@ endef
 define Package/huelights/install
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/huelights $(1)/usr/sbin/
+
+	$(INSTALL_DIR) $(1)/etc/init.d/
+	$(INSTALL_BIN) ./files/huelights.init $(1)/etc/init.d/huelights
 endef
 
 define Host/Prepare

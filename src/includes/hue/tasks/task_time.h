@@ -28,7 +28,7 @@ public:
 
 	virtual bool execute(bool& fatalError);
 
-	virtual void updateTrigger(time_t now, time_t* diff = NULL);
+	virtual void updateTrigger(time_t now, int64_t* diff = NULL);
 
 protected:
 	virtual void toJsonInt(json_object* obj) const;

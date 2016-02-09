@@ -126,7 +126,7 @@ bool HueTaskTime::execute(bool& fatalError) {
 	return true;
 }
 
-void HueTaskTime::updateTrigger(time_t now, time_t* diff) {
+void HueTaskTime::updateTrigger(time_t now, int64_t* diff) {
 	if(mTaskMethod != MethodRecurring) {
 		return;
 	}

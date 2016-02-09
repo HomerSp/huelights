@@ -19,7 +19,7 @@ enum ArgListType {
 	ArgListTypeJson,
 };
 
-void printHelp() {
+static void printHelp() {
 	std::cerr << "huelights [options] <command> [parameters]\n"
 	<< "Options" << "\n"
 	<< "\t" << "--help" << "\n"
@@ -68,7 +68,7 @@ void printHelp() {
 	<< "\t\t\t" << "You can use --hub to specify the device, and --light for the light" << "\n";
 }
 
-bool runDaemon(HueConfig& config, const std::vector<std::string> &params, bool& showHelp) {
+static bool runDaemon(HueConfig& config, const std::vector<std::string> &params, bool& showHelp) {
 	if(params.size() > 0) {
 		showHelp = true;
 		return false;
@@ -108,7 +108,7 @@ bool runDaemon(HueConfig& config, const std::vector<std::string> &params, bool& 
 	return true;
 }
 
-bool runAuthorize(HueConfig& config, const std::string& hubID, const std::vector<std::string> &params, bool& showHelp) {
+static bool runAuthorize(HueConfig& config, const std::string& hubID, const std::vector<std::string> &params, bool& showHelp) {
 	if(params.size() > 0) {
 		showHelp = true;
 		return false;
@@ -201,7 +201,7 @@ bool runAuthorize(HueConfig& config, const std::string& hubID, const std::vector
 	return ret;
 }
 
-bool runLight(HueConfig& config, const std::string& hubID, const std::string& lightID, HueLightState& lightState, const std::vector<std::string> &params, bool& showHelp) {
+static bool runLight(HueConfig& config, const std::string& hubID, const std::string& lightID, HueLightState& lightState, const std::vector<std::string> &params, bool& showHelp) {
 	if(params.size() != 1 || hubID.length() == 0 || lightID.length() == 0) {
 		showHelp = true;
 		return false;
@@ -252,7 +252,7 @@ bool runLight(HueConfig& config, const std::string& hubID, const std::string& li
 	return b;
 }
 
-bool runList(HueConfig& config, const std::string& hubID, const std::string& lightID, ArgListType listType, const std::vector<std::string> &params, bool& showHelp) {
+static bool runList(HueConfig& config, const std::string& hubID, const std::string& lightID, ArgListType listType, const std::vector<std::string> &params, bool& showHelp) {
 	showHelp = false;
 
 	if(params.size() != 1) {
@@ -351,10 +351,13 @@ bool runList(HueConfig& config, const std::string& hubID, const std::string& lig
 			}
 		}
 
+		time_t now = time(NULL);
+
 		switch(listType) {
 			case ArgListTypeNormal: {
 				for(std::vector<HubDevice*>::const_iterator it = devices.begin(); it != devices.end(); ++it) {
 					for(std::vector<HueTask*>::const_iterator taskIt = (*it)->tasks().begin(); taskIt != (*it)->tasks().end(); ++taskIt) {
+						(*taskIt)->updateTrigger(now);
 						std::cout << (*taskIt)->toString() << "\n\n";
 					}
 				}
@@ -365,6 +368,7 @@ bool runList(HueConfig& config, const std::string& hubID, const std::string& lig
 				json_object* arrObj = json_object_new_array();
 				for(std::vector<HubDevice*>::const_iterator it = devices.begin(); it != devices.end(); ++it) {
 					for(std::vector<HueTask*>::const_iterator taskIt = (*it)->tasks().begin(); taskIt != (*it)->tasks().end(); ++taskIt) {
+						(*taskIt)->updateTrigger(now);
 						json_object_array_add(arrObj, (*taskIt)->toJson());
 					}
 				}

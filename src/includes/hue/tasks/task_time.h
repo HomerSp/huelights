@@ -28,6 +28,8 @@ public:
 
 	virtual bool execute(bool& fatalError);
 
+	virtual void updateTrigger(time_t now, time_t* diff = NULL);
+
 protected:
 	virtual void toJsonInt(json_object* obj) const;
 	virtual void toStringInt(std::ostringstream& s) const;

@@ -152,8 +152,7 @@ std::string HueTask::toString() const {
 
 	toStringInt(s);
 
-	s << "\n\n" << "[Task State]";
-	s << "\n" << "task=" << mID;
+	s << "\n\n" << "[Task " << mID << " State]";
 	if(mStateToggle) {
 		s << "\n" << "status=toggle";
 	} else if(mState.isSet(HueLightState::StateSetPower)) {

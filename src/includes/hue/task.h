@@ -18,6 +18,7 @@ public:
 	static HueTask* fromConfig(const HueConfig& config, const HueConfigSection &taskConfig, const HubDevice& device);
 
 	virtual bool execute(bool& fatalError) = 0;
+	virtual void updateTrigger(time_t now, time_t* diff = NULL) = 0;
 
 	bool valid() const {
 		return mValid;

@@ -62,7 +62,7 @@ public:
 	}
 
 	bool operator==(const HueLightState& other) const {
-		return mStates == 0;
+		return mStates == other.mStates;
 	}
 
 	bool operator!=(const HueLightState& other) const {
@@ -83,6 +83,7 @@ private:
 class HueLight {
 public:
 	HueLight(json_object* lightObj, int index);
+	~HueLight();
 
 	bool write(const HubDevice& device);
 

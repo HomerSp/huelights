@@ -79,6 +79,15 @@ HueLight::HueLight(json_object* lightObj, int index)
 	mValid = true;
 }
 
+HueLight::~HueLight() {
+	if(mState != NULL) {
+		delete mState;
+	}
+	if(mNewState != NULL) {
+		delete mNewState;
+	}
+}
+
 bool HueLight::write(const HubDevice& device) {
 	if(mNewState == NULL) {
 		return false;
@@ -109,7 +118,6 @@ bool HueLight::write(const HubDevice& device) {
 		<< "/state";
 
 	//url << "http://192.168.1.101";
-
 	json_object* output;
 	if(!putJson(url.str(), obj, &output)) {
 		json_object_put(obj);

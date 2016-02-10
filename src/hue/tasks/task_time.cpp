@@ -76,40 +76,38 @@ void HueTaskTime::updateTrigger(time_t now) {
 	mTime.tm_yday = nowTm->tm_yday;
 	mTime.tm_isdst = nowTm->tm_isdst;
 
-	if(mRepeatDays.size() > 0) {
-		// Two weeks ahead should be enough to find a valid date (probably not necessary, but it doesn't matter).
-		for(int i = 0; i < 14; i++) {
-			if(mRepeatDays.size() == 0 || mRepeatDays.find(mTime.tm_wday) != mRepeatDays.end()) {
-				if(mTimeSun != SunNone) {
-					std::pair<time_t, time_t> sunPosition;
-					SunPosition::getTimes(sunPosition, mktime(&mTime), mPosition.first, mPosition.second);
+	// Two weeks ahead should be enough to find a valid date (probably not necessary, but it doesn't matter).
+	for(int i = 0; i < 14; i++) {
+		if(mRepeatDays.size() == 0 || mRepeatDays.find(mTime.tm_wday) != mRepeatDays.end()) {
+			if(mTimeSun != SunNone) {
+				std::pair<time_t, time_t> sunPosition;
+				SunPosition::getTimes(sunPosition, mktime(&mTime), mPosition.first, mPosition.second);
 
-					struct tm* sunTime;
-					if(mTimeSun == SunRise) {
-						sunTime = localtime(&sunPosition.first);
-					} else {
-						sunTime = localtime(&sunPosition.second);
-					}
-
-					mTime.tm_hour = sunTime->tm_hour;
-					mTime.tm_min = sunTime->tm_min;
+				struct tm* sunTime;
+				if(mTimeSun == SunRise) {
+					sunTime = localtime(&sunPosition.first);
+				} else {
+					sunTime = localtime(&sunPosition.second);
 				}
 
-				int64_t diff = difftime(now, mktime(&mTime));
-				if(diff <= 0) {
-					break;
-				}
-
-				if(mTimeSun != SunNone) {
-					mTime.tm_hour = mTime.tm_min = 0;
-				}
+				mTime.tm_hour = sunTime->tm_hour;
+				mTime.tm_min = sunTime->tm_min;
 			}
 
-			mTime.tm_mday++;
-			mTime.tm_wday++;
-			if(mTime.tm_wday > 6) {
-				mTime.tm_wday = 0;
+			int64_t diff = difftime(now, mktime(&mTime));
+			if(diff <= 0) {
+				break;
 			}
+
+			if(mTimeSun != SunNone) {
+				mTime.tm_hour = mTime.tm_min = 0;
+			}
+		}
+
+		mTime.tm_mday++;
+		mTime.tm_wday++;
+		if(mTime.tm_wday > 6) {
+			mTime.tm_wday = 0;
 		}
 	}
 }

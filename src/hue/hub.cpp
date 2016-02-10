@@ -104,20 +104,59 @@ bool HubDevice::authorize(bool& retry) {
 	return ret;
 }
 
+bool HubDevice::update(const std::string &id, const std::string &ip, const std::string &name) {
+	mID = id;
+	mIp = ip;
+	mName = name;
+
+	HueConfigSection* configSection = mConfig.getSection("Hub", "id", id);
+	if(configSection != NULL) {
+		mUser = configSection->value("user");
+	}
+
+	if(!updateLights()) {
+		return false;
+	}
+
+	if(!updateTasks()) {
+		return false;
+	}
+
+	return true;
+}
+
 bool HubDevice::updateLights() {
 	if(!isAuthorized()) {
 		return false;
 	}
 
-	for(std::vector<HueLight*>::const_iterator it = mLights.begin(); it != mLights.end(); ++it) {
-		delete *it;
-	}
-
-	mLights.clear();
+	std::vector<std::string> lightIds;
 
 	json_object* lightsObj;
 	if(downloadJson("http://" + mIp + "/api/" + mUser + "/lights", &lightsObj)) {
 		json_object_object_foreach(lightsObj, key, val) {
+			json_object *idObj;
+			if(!json_object_object_get_ex(val, "uniqueid", &idObj)) {
+				continue;
+			}
+
+			std::string id = json_object_get_string(idObj);
+
+			bool found = false;
+			for(std::vector<HueLight*>::iterator it = mLights.begin(); it != mLights.end(); ++it) {
+				if(*(*it) == id) {
+					(*it)->update(val, atoi(key));
+					found = true;
+					break;
+				}
+			}
+
+			lightIds.push_back(id);
+
+			if(found) {
+				continue;
+			}
+
 			HueLight* light = new HueLight(val, atoi(key));
 			if(!light->valid()) {
 				fprintf(stderr, "Light is not valid\n");
@@ -131,24 +170,69 @@ bool HubDevice::updateLights() {
 		return false;
 	}
 
+	for(uint32_t i = 0; i < mLights.size(); i++) {
+		bool found = false;
+		for(std::vector<std::string>::iterator it = lightIds.begin(); it != lightIds.end(); ++it) {
+			if(*(mLights[i]) == (*it)) {
+				found = true;
+			}
+		}
+
+		if(!found) {
+			delete mLights[i];
+			mLights.erase(mLights.begin() + i);
+			i--;
+		}
+	}
+
 	return true;
 }
 
 bool HubDevice::updateTasks() {
-	for(std::vector<HueTask*>::const_iterator it = mTasks.begin(); it != mTasks.end(); ++it) {
-		delete *it;
-	}
-
-	mTasks.clear();
-
+	// Look for new tasks.
 	const std::vector<HueConfigSection*> sections = mConfig.getSections("Task", "hub", mID);
 	for(std::vector<HueConfigSection*>::const_iterator it = sections.begin(); it != sections.end(); ++it) {
+		bool shouldAdd = true;
+		for(std::vector<HueTask*>::const_iterator taskIt = mTasks.begin(); taskIt != mTasks.end(); ++taskIt) {
+			if(*(*taskIt) == (*it)->value("id")) {
+				(*taskIt)->update(mConfig, *(*it));
+
+				shouldAdd = false;
+				break;
+			}
+		}
+
+		if(!shouldAdd) {
+			continue;
+		}
+
 		HueTask* task = HueTask::fromConfig(mConfig, *(*it), *this);
-		if(task == NULL || !task->valid()) {
+		if(task == NULL) {
+			continue;
+		}
+		if(!task->valid()) {
+			delete task;
 			continue;
 		}
 
 		mTasks.push_back(task);
+	}
+
+	// Look for removed tasks.
+	for(uint32_t i = 0; i < mTasks.size(); i++) {
+		bool found = false;
+		for(std::vector<HueConfigSection*>::const_iterator it = sections.begin(); it != sections.end(); ++it) {
+			if(*mTasks.at(i) == (*it)->value("id")) {
+				found = true;
+			}
+		}
+
+		// Couldn't find it in the config file, remove it!
+		if(!found) {
+			delete mTasks[i];
+			mTasks.erase(mTasks.begin() + i);
+			i--;
+		}
 	}
 
 	return true;

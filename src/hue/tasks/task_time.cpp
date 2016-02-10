@@ -7,8 +7,8 @@
 
 std::map<std::string, HueTaskTime::Method> HueTaskTime::sSupportedMethods;
 
-HueTaskTime::HueTaskTime(const HueConfigSection &taskConfig, const HueConfigSection &stateConfig, const HueConfigSection &triggerConfig, const HubDevice& device)
-	: HueTask(taskConfig, stateConfig, device),
+HueTaskTime::HueTaskTime(const HueConfig& config, const HueConfigSection &taskConfig, const HubDevice& device)
+	: HueTask(config, taskConfig, device),
 	mTaskMethod(HueTaskTime::MethodNone),
 	mPosition(std::make_pair<double, double>(0.0f, 0.0f)),
 	mTimeSun(SunNone)
@@ -18,67 +18,10 @@ HueTaskTime::HueTaskTime(const HueConfigSection &taskConfig, const HueConfigSect
 		sSupportedMethods.insert(std::pair<std::string, HueTaskTime::Method>("recurring", HueTaskTime::MethodRecurring));
 	}
 
-	std::string m = triggerConfig.value("method");
-	if(sSupportedMethods.count(m) != 1) {
-		HueTask::mValid = false;
-		return;
-	}
-
-	mTaskMethod = sSupportedMethods.at(m);
-
 	memset(&mTime, 0, sizeof(struct tm));
 
-	switch(mTaskMethod) {
-		case HueTaskTime::MethodFixed: {
-			if (!strptime(triggerConfig.value("time").c_str(), "%Y-%m-%d %H:%M", &mTime)) {
-				HueTask::mValid = false;
-				return;
-			}
-
-			break;
-		}
-		case HueTaskTime::MethodRecurring: {
-			std::string timeStr = triggerConfig.value("time");
-			if(timeStr == "sunrise") {
-				mTimeSun = SunRise;
-			} else if(timeStr == "sunset") {
-				mTimeSun = SunSet;
-			} else if (!strptime(timeStr.c_str(), "%H:%M", &mTime)) {
-				HueTask::mValid = false;
-				return;
-			}
-
-			if(triggerConfig.hasKey("position")) {
-				std::vector<std::string> position;
-				commaListToVector(triggerConfig.value("position"), position);
-
-				mPosition.first = atof(position.at(0).c_str());
-				mPosition.second = atof(position.at(1).c_str());
-			}
-
-			if(triggerConfig.hasKey("days")) {
-				std::set<std::string> repeat;
-				commaListToSet(triggerConfig.value("days"), repeat);
-
-				if(repeat.find("all") == repeat.end()) {
-					static std::string days[] = {"sun", "mon", "tue", "wed", "thu", "fri", "sat"};
-
-					for(std::set<std::string>::iterator it = repeat.begin(); it != repeat.end(); ++it) {
-						for(uint32_t i = 0; i < 7; i++) {
-							if(*it == days[i]) {
-								mRepeatDays.insert(i);
-							}
-						}
-					}
-				}
-			}
-
-			updateTrigger(time(NULL));
-		}
-		default: {
-			break;
-		}
-	}
+	HueTask::update(config, taskConfig);
+	updateTrigger(time(NULL));
 }
 
 bool HueTaskTime::execute(bool& fatalError) {
@@ -93,7 +36,7 @@ bool HueTaskTime::execute(bool& fatalError) {
 	switch(mTaskMethod) {
 		case MethodFixed: {
 			if(diff >= 0 && diff < 60) {
-				std::cout << "TRIGGER!\n";
+				std::cout << "TRIGGER " << id() << "!\n";
 				trigger();
 			}
 
@@ -104,7 +47,7 @@ bool HueTaskTime::execute(bool& fatalError) {
 			if(diff >= 0 && diff < 60) {
 				updateTrigger(now);
 
-				std::cout << "TRIGGER!\n";
+				std::cout << "TRIGGER " << id() << "!\n";
 				trigger();
 			}
 
@@ -169,6 +112,76 @@ void HueTaskTime::updateTrigger(time_t now) {
 			}
 		}
 	}
+}
+
+bool HueTaskTime::update(const HueConfigSection& triggerConfig) {
+	std::string m = triggerConfig.value("method");
+	if(sSupportedMethods.count(m) != 1) {
+		return false;
+	}
+
+	mTaskMethod = sSupportedMethods.at(m);
+
+	time_t timeBefore = mktime(&mTime);
+
+	switch(mTaskMethod) {
+		case HueTaskTime::MethodFixed: {
+			if (!strptime(triggerConfig.value("time").c_str(), "%Y-%m-%d %H:%M", &mTime)) {
+				return false;
+			}
+
+			break;
+		}
+		case HueTaskTime::MethodRecurring: {
+			mTimeSun = SunNone;
+
+			std::string timeStr = triggerConfig.value("time");
+			if(timeStr == "sunrise") {
+				mTimeSun = SunRise;
+			} else if(timeStr == "sunset") {
+				mTimeSun = SunSet;
+			} else if (!strptime(timeStr.c_str(), "%H:%M", &mTime)) {
+				return false;
+			}
+
+			if(triggerConfig.hasKey("position")) {
+				std::vector<std::string> position;
+				commaListToVector(triggerConfig.value("position"), position);
+
+				mPosition.first = atof(position.at(0).c_str());
+				mPosition.second = atof(position.at(1).c_str());
+			}
+
+			mRepeatDays.clear();
+			if(triggerConfig.hasKey("days")) {
+				std::set<std::string> repeat;
+				commaListToSet(triggerConfig.value("days"), repeat);
+
+				if(repeat.find("all") == repeat.end()) {
+					static std::string days[] = {"sun", "mon", "tue", "wed", "thu", "fri", "sat"};
+
+					for(std::set<std::string>::iterator it = repeat.begin(); it != repeat.end(); ++it) {
+						for(uint32_t i = 0; i < 7; i++) {
+							if(*it == days[i]) {
+								mRepeatDays.insert(i);
+							}
+						}
+					}
+				}
+			}
+		}
+		default: {
+			break;
+		}
+	}
+
+	// Only update trigger time when the time has actually changed.
+	int64_t diff = difftime(timeBefore, mktime(&mTime));
+	if(diff != 0) {
+		updateTrigger(time(NULL));
+	}
+
+	return true;
 }
 
 void HueTaskTime::toJsonInt(json_object* obj) const {

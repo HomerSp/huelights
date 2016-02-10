@@ -20,6 +20,8 @@ public:
 	virtual bool execute(bool& fatalError) = 0;
 	virtual void updateTrigger(time_t now) = 0;
 
+	bool update(const HueConfig& config, const HueConfigSection& taskConfig);
+
 	bool valid() const {
 		return mValid;
 	}
@@ -46,8 +48,12 @@ public:
 		return mID == id;
 	}
 
+	bool operator==(const HueTask& other) const {
+		return mID == other.mID;
+	}
+
 protected:
-	HueTask(const HueConfigSection &taskConfig, const HueConfigSection &stateConfig, const HubDevice& device);
+	HueTask(const HueConfig& config, const HueConfigSection &taskConfig, const HubDevice& device);
 
 	virtual void toJsonInt(json_object* obj) const = 0;
 	virtual void toStringInt(std::ostringstream& s) const = 0;
@@ -55,6 +61,8 @@ protected:
 	void generateID();
 
 	bool trigger();
+
+	virtual bool update(const HueConfigSection& triggerConfig) = 0;
 
 	bool mValid;
 

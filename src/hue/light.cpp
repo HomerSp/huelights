@@ -62,9 +62,35 @@ void HueLightState::copyTo(HueLightState* other) {
 
 HueLight::HueLight(json_object* lightObj, int index)
 	: mValid(false),
+	mState(NULL),
 	mNewState(NULL),
 	mIndex(index)
 {	
+	update(lightObj, index);
+}
+
+HueLight::~HueLight() {
+	if(mState != NULL) {
+		delete mState;
+	}
+	if(mNewState != NULL) {
+		delete mNewState;
+	}
+}
+
+void HueLight::update(json_object* lightObj, int index) {
+	if(mNewState != NULL) {
+		delete mNewState;
+		mNewState = NULL;
+	}
+	if(mState != NULL) {
+		delete mState;
+		mState = NULL;
+	}
+
+	mValid = false;
+	mIndex = index;
+
 	JSON_GET(lightObj, "type", string, mType);
 	JSON_GET(lightObj, "name", string, mName);
 	JSON_GET(lightObj, "modelid", string, mModel);
@@ -77,15 +103,6 @@ HueLight::HueLight(json_object* lightObj, int index)
 	mState = new HueLightState(stateObj);
 
 	mValid = true;
-}
-
-HueLight::~HueLight() {
-	if(mState != NULL) {
-		delete mState;
-	}
-	if(mNewState != NULL) {
-		delete mNewState;
-	}
 }
 
 bool HueLight::write(const HubDevice& device) {

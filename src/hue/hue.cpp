@@ -44,6 +44,8 @@ HubDevice* Hue::getHubDevice(const std::string& deviceID, HueConfig& config) {
 }
 
 bool Hue::getHubDevices(std::vector<HubDevice *> &devices, HueConfig& config) {
+	std::vector<std::string> deviceIds;
+
 	json_object* pnpObj;
 	if(downloadJson("https://www.meethue.com/api/nupnp", &pnpObj)) {
 		for(int i = 0; i < json_object_array_length(pnpObj); i++) {
@@ -60,7 +62,22 @@ bool Hue::getHubDevices(std::vector<HubDevice *> &devices, HueConfig& config) {
 				json_object_object_get_ex(configObj, "name", &nameObj);
 
 				std::string name = json_object_get_string(nameObj);
-				devices.push_back(new HubDevice(id, ip, name, config));
+
+				bool found = false;
+				for(std::vector<HubDevice*>::iterator it = devices.begin(); it != devices.end(); ++it) {
+					if(*(*it) == id) {
+						(*it)->update(id, ip, name);
+
+						found = true;
+						break;
+					}
+				}
+
+				if(!found) {
+					devices.push_back(new HubDevice(id, ip, name, config));
+				}
+
+				deviceIds.push_back(id);
 
 				json_object_put(configObj);
 			}
@@ -69,6 +86,23 @@ bool Hue::getHubDevices(std::vector<HubDevice *> &devices, HueConfig& config) {
 		json_object_put(pnpObj);
 	} else {
 		return false;
+	}
+
+	// Look for removed devices.
+	for(uint32_t i = 0; i < devices.size(); i++) {
+		bool found = false;
+		for(std::vector<std::string>::iterator newIt = deviceIds.begin(); newIt != deviceIds.end(); ++newIt) {
+			if(*devices.at(i) == (*newIt)) {
+				found = true;
+				break;
+			}
+		}
+
+		if(!found) {
+			delete devices[i];
+			devices.erase(devices.begin() + i);
+			i--;
+		}
 	}
 
 	return true;

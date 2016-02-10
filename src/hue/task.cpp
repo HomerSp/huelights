@@ -5,14 +5,76 @@
 #include "hue/tasks/task_time.h"
 #include "utils.h"
 
-HueTask::HueTask(const HueConfigSection &taskConfig, const HueConfigSection &stateConfig, const HubDevice& device)
+HueTask::HueTask(const HueConfig& config, const HueConfigSection &taskConfig, const HubDevice& device)
 	: mValid(false),
 	mDevice(device),
 	mEnabled(false),
 	mStateToggle(false)
 {
-	if(!taskConfig.hasKey("id") || !taskConfig.hasKey("name") || !taskConfig.hasKey("type")) {
+	// Type has to be set, or the update method won't work.
+	if(!taskConfig.hasKey("type")) {
 		return;
+	}
+
+	mType = taskConfig.value("type");
+}
+
+HueTask* HueTask::fromConfig(const HueConfig& config, const HueConfigSection &taskConfig, const HubDevice& device) {
+	if(!taskConfig.hasKey("type")) {
+		return NULL;
+	}
+
+	std::string type = taskConfig.value("type");
+
+	#define GET_TASK_TYPE(t, c) do {\
+		if(type == t) {\
+			ret = new c(config, taskConfig, device);\
+		} \
+	} while(0)
+
+	HueTask* ret = NULL;
+	GET_TASK_TYPE("time", HueTaskTime);
+	if(ret == NULL) {
+		std::cerr << "Unknown task type " << type << "\n";
+
+		return NULL;
+	}
+
+	if(!ret->valid()) {
+		delete ret;
+		return NULL;
+	}
+
+	return ret;
+}
+
+bool HueTask::update(const HueConfig& config, const HueConfigSection& taskConfig) {
+	mValid = false;
+
+	if(!taskConfig.hasKey("id") || !taskConfig.hasKey("type")) {
+		return false;
+	}
+
+	std::string id = taskConfig.value("id");
+	std::string type = taskConfig.value("type");
+
+	// We can't do anything if the type has been changed...
+	if(mType != type) {
+		return false;
+	}
+
+	HueConfigSection *stateConfig = config.getSection("Task " + id + " State");
+	if(stateConfig == NULL) {
+		return false;
+	}
+
+	HueConfigSection *triggerConfig = config.getSection("Task " + id + " Trigger");
+	if(triggerConfig == NULL) {
+		return false;
+	}
+
+	if(!taskConfig.hasKey("id") || !taskConfig.hasKey("name") || !taskConfig.hasKey("type")) {
+		return false;
 	}
 
 	mEnabled = taskConfig.boolValue("enabled", mEnabled);
@@ -24,60 +86,38 @@ HueTask::HueTask(const HueConfigSection &taskConfig, const HueConfigSection &sta
 	std::set<std::string> lightIDs;
 	commaListToSet(taskConfig.value("lights"), lightIDs);
 
+	mLights.clear();
 	for(std::set<std::string>::iterator it = lightIDs.begin(); it != lightIDs.end(); ++it) {
-		HueLight* light = device.light(*it);
+		HueLight* light = mDevice.light(*it);
 		if(light != NULL) {
 			mLights.push_back(light);
 		} else {
 			std::cerr << "Task (" << mID << ") Failed to find light " << *it << ", please check your configuration!\n";
-			return;
+			return false;
 		}
 
 	}
 
-	if(stateConfig.hasKey("status")) {
-		std::string status = stateConfig.value("status");
-		if(status == "toggle") {
+	mState.reset();
+	mStateToggle = false;
+	if(stateConfig->hasKey("state")) {
+		std::string state = stateConfig->value("state");
+		if(state == "toggle") {
 			mStateToggle = true;
 		} else {
-			mState.setOn(status == "on");
+			mState.setOn(state == "on");
 		}
 	}
-	if(stateConfig.hasKey("brightness")) {
-		mState.setBrightness(stateConfig.intValue("brightness"));
+	if(stateConfig->hasKey("brightness")) {
+		mState.setBrightness(stateConfig->intValue("brightness"));
+	}
+
+	if(!update(*triggerConfig)) {
+		return false;
 	}
 
 	mValid = true;
-}
-
-HueTask* HueTask::fromConfig(const HueConfig& config, const HueConfigSection &taskConfig, const HubDevice& device) {
-	if(!taskConfig.hasKey("id") || !taskConfig.hasKey("type")) {
-		return NULL;
-	}
-
-	std::string id = taskConfig.value("id");
-	std::string type = taskConfig.value("type");
-
-	HueConfigSection *stateConfig = config.getSection("Task " + id + " State");
-	if(stateConfig == NULL) {
-		return NULL;
-	}
-
-	HueConfigSection *triggerConfig = config.getSection("Task " + id + " Trigger");
-	if(triggerConfig == NULL) {
-		return NULL;
-	}
-
-	#define GET_TASK_TYPE(t, c) do {\
-		if(type == t) {\
-			return new c(taskConfig, *stateConfig, *triggerConfig, device);\
-		} \
-	} while(0)
-
-	GET_TASK_TYPE("time", HueTaskTime);
-
-	std::cerr << "Unknown task type " << type << "\n";
-	return NULL;
+	return true;
 }
 
 void HueTask::generateID() {
@@ -114,15 +154,15 @@ json_object* HueTask::toJson() const {
 	json_object* stateObj = json_object_new_object();
 
 	if(mStateToggle) {
-		json_object_object_add(stateObj, "status", json_object_new_string("toggle"));
+		json_object_object_add(stateObj, "state", json_object_new_string("toggle"));
 	} else if(mState.isSet(HueLightState::StateSetPower)) {
-		json_object_object_add(stateObj, "status", json_object_new_string((mState.on() ? "on" : "off")));
+		json_object_object_add(stateObj, "state", json_object_new_string((mState.on() ? "on" : "off")));
 	}
 	if(mState.isSet(HueLightState::StateSetBrightness)) {
 		json_object_object_add(stateObj, "brightness", json_object_new_int(mState.brightness()));
 	}
 	if(mState.isSet(HueLightState::StateSetAlert)) {
-		json_object_object_add(stateObj, "status", json_object_new_string(mState.alert().c_str()));
+		json_object_object_add(stateObj, "alert", json_object_new_string(mState.alert().c_str()));
 	}
 
 	json_object_object_add(obj, "state", stateObj);
@@ -154,9 +194,9 @@ std::string HueTask::toString() const {
 
 	s << "\n\n" << "[Task " << mID << " State]";
 	if(mStateToggle) {
-		s << "\n" << "status=toggle";
+		s << "\n" << "state=toggle";
 	} else if(mState.isSet(HueLightState::StateSetPower)) {
-		s << "\n" << "status=" << (mState.on() ? "on" : "off");
+		s << "\n" << "state=" << (mState.on() ? "on" : "off");
 	}
 	if(mState.isSet(HueLightState::StateSetBrightness)) {
 		s << "\n" << "brightness=" << mState.brightness();

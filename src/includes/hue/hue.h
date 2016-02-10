@@ -11,6 +11,8 @@ class Hue {
 public:
 	static HubDevice* getHubDevice(const std::string& id, HueConfig& config);
 	static bool getHubDevices(std::vector<HubDevice *> &devices, HueConfig& config);
+
+	static bool getTasks(std::vector<HueTask*> & tasks, HueConfig& config);
 };
 
 #endif //INCLUDES_HUE_H

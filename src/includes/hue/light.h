@@ -61,6 +61,10 @@ public:
 		mStates |= StateSetAlert;
 	}
 
+	void reset() {
+		mStates = 0;
+	}
+
 	bool operator==(const HueLightState& other) const {
 		return mStates == other.mStates;
 	}
@@ -85,6 +89,7 @@ public:
 	HueLight(json_object* lightObj, int index);
 	~HueLight();
 
+	void update(json_object* lightObj, int index);
 	bool write(const HubDevice& device);
 
 	bool valid() const {
@@ -113,8 +118,12 @@ public:
 	json_object* toJson() const;
 	std::string toString() const;
 
-	bool operator==(const std::string id) const {
+	bool operator==(const std::string& id) const {
 		return mID == id;
+	}
+
+	bool operator==(const HueLight& other) const {
+		return mID == other.mID;
 	}
 
 private:

@@ -74,6 +74,7 @@ static bool runDaemon(HueConfig& config, const std::vector<std::string> &params,
 		return false;
 	}
 
+	std::vector<HubDevice* > devices;
 
 	bool error = false;
 	while(!error) {
@@ -88,9 +89,8 @@ static bool runDaemon(HueConfig& config, const std::vector<std::string> &params,
 
 		// Sleep until that time
 		uint64_t diff = difftime(end, start);
-		sleep(diff);
+		//sleep(diff);
 
-		std::vector<HubDevice* > devices;
 		if(!Hue::getHubDevices(devices, config)) {
 			continue;
 		}
@@ -101,10 +101,6 @@ static bool runDaemon(HueConfig& config, const std::vector<std::string> &params,
 			}
 		}
 
-		for(std::vector<HubDevice*>::iterator it = devices.begin(); it != devices.end(); ++it) {
-			delete *it;
-		}
-
 		bool parseFailure = false;
 		if(!config.parse(parseFailure)) {
 			if(parseFailure) {
@@ -113,6 +109,10 @@ static bool runDaemon(HueConfig& config, const std::vector<std::string> &params,
 				std::cerr << "Failed to read config file!\n";
 			}
 		}
+	}
+
+	for(std::vector<HubDevice*>::iterator it = devices.begin(); it != devices.end(); ++it) {
+		delete *it;
 	}
 
 	return true;

@@ -16,8 +16,7 @@ public:
 
 	bool authorize(bool& retry);
 
-	bool updateLights();
-	bool updateTasks();
+	bool update(const std::string &id, const std::string &ip, const std::string &name);
 
 	const std::vector<HueLight*> &lights() const {
 		return mLights;
@@ -56,6 +55,18 @@ public:
 
 	json_object* toJson() const;
 	std::string toString() const;
+
+	bool operator==(const HubDevice& other) const {
+		return mID == other.mID;
+	}
+
+	bool operator==(const std::string& id) const {
+		return mID == id;
+	}
+
+protected:
+	bool updateLights();
+	bool updateTasks();
 
 private:
 	HueConfig& mConfig;

@@ -24,13 +24,15 @@ public:
 		SunSet = 2,
 	};
 
-	HueTaskTime(const HueConfigSection &taskConfig, const HueConfigSection &stateConfig, const HueConfigSection &triggerConfig, const HubDevice& device);
+	HueTaskTime(const HueConfig& config, const HueConfigSection &taskConfig, const HubDevice& device);
 
 	virtual bool execute(bool& fatalError);
 
 	virtual void updateTrigger(time_t now);
 
 protected:
+	virtual bool update(const HueConfigSection& triggerConfig);
+
 	virtual void toJsonInt(json_object* obj) const;
 	virtual void toStringInt(std::ostringstream& s) const;
 	

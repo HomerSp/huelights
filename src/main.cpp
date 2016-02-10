@@ -101,7 +101,7 @@ static bool runDaemon(HueConfig& config, const std::vector<std::string> &params,
 			}
 		}
 
-		for(std::vector<HubDevice*>::const_iterator it = devices.begin(); it != devices.end(); ++it) {
+		for(std::vector<HubDevice*>::iterator it = devices.begin(); it != devices.end(); ++it) {
 			delete *it;
 		}
 
@@ -237,14 +237,16 @@ static bool runLight(HueConfig& config, const std::string& hubID, const std::str
 		delete device;
 		return false;
 	}
+
+	lightState.setOn(light->state()->on());
 	
 	std::string state = params[0];
 	if(state == "on") {
-		light->newState()->setOn();
+		lightState.setOn();
 	} else if(state == "off") {
-		light->newState()->setOn(false);
+		lightState.setOn(false);
 	} else if(state == "toggle") {
-		light->newState()->toggle();
+		lightState.toggle();
 	} else {
 		std::cerr << "Error: Unknown light state " << state << "\n";
 

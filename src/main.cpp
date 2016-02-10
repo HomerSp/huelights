@@ -91,6 +91,15 @@ static bool runDaemon(HueConfig& config, const std::vector<std::string> &params,
 		uint64_t diff = difftime(end, start);
 		sleep(diff);
 
+		bool parseFailure = false;
+		if(!config.parse(parseFailure)) {
+			if(parseFailure) {
+				std::cerr << "Failed to parse config file!\n";
+			} else {
+				std::cerr << "Failed to read config file!\n";
+			}
+		}
+
 		if(!Hue::getHubDevices(devices, config)) {
 			continue;
 		}
@@ -98,15 +107,6 @@ static bool runDaemon(HueConfig& config, const std::vector<std::string> &params,
 		for(std::vector<HubDevice*>::const_iterator deviceIt = devices.begin(); deviceIt != devices.end(); ++deviceIt) {
 			for(std::vector<HueTask*>::const_iterator it = (*deviceIt)->tasks().begin(); it != (*deviceIt)->tasks().end(); ++it) {
 				(*it)->execute(error);
-			}
-		}
-
-		bool parseFailure = false;
-		if(!config.parse(parseFailure)) {
-			if(parseFailure) {
-				std::cerr << "Failed to parse config file!\n";
-			} else {
-				std::cerr << "Failed to read config file!\n";
 			}
 		}
 	}

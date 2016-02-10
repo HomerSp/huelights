@@ -21,8 +21,6 @@ static size_t putBuffer(char *stream, size_t size, size_t nmemb, std::vector<cha
 		ret = size * nmemb;
 	}
 
-	//fprintf(stderr, "put data: %s\n", stream);
-
 	return ret;
 }
 
@@ -41,8 +39,7 @@ static bool init(CURL *&conn, const char *url, std::string* buffer, char* errorB
 {
 	CURLcode code;
 
-	curl_global_init(CURL_GLOBAL_DEFAULT);
-
+	curl_global_init(CURL_GLOBAL_ALL);
 	conn = curl_easy_init();
 
 	if (conn == NULL)
@@ -112,6 +109,7 @@ bool downloadJson(std::string url, json_object** output) {
 
 	CURLcode code = curl_easy_perform(conn);
 	curl_easy_cleanup(conn);
+	curl_global_cleanup();
 
 	if (code != CURLE_OK)
 	{
@@ -140,6 +138,7 @@ bool postJson(std::string url, json_object* input, json_object** output) {
 
 	CURLcode code = curl_easy_perform(conn);
 	curl_easy_cleanup(conn);
+	curl_global_cleanup();
 
 	if (code != CURLE_OK)
 	{
@@ -175,6 +174,7 @@ bool putJson(std::string url, json_object* input, json_object** output) {
 	// Retrieve content for the URL
 	CURLcode code = curl_easy_perform(conn);
 	curl_easy_cleanup(conn);
+	curl_global_cleanup();
 
 	if (code != CURLE_OK)
 	{

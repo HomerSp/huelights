@@ -89,7 +89,7 @@ static bool runDaemon(HueConfig& config, const std::vector<std::string> &params,
 
 		// Sleep until that time
 		uint64_t diff = difftime(end, start);
-		//sleep(diff);
+		sleep(diff);
 
 		if(!Hue::getHubDevices(devices, config)) {
 			continue;

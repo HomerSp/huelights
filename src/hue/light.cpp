@@ -14,7 +14,7 @@ HueLightState::HueLightState() :
 
 }
 
-HueLightState::HueLightState(HueLightState* state) :
+HueLightState::HueLightState(const HueLightState* state) :
 	mValid(true),
 	mStates(state->mStates),
 	mOn(state->mOn),

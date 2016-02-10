@@ -18,7 +18,7 @@ public:
 	};
 
 	HueLightState();
-	HueLightState(HueLightState* state);
+	HueLightState(const HueLightState* state);
 	HueLightState(json_object* stateObj);
 
 	bool valid() const {

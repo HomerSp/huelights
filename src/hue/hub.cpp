@@ -70,7 +70,6 @@ bool HubDevice::authorize(bool& retry) {
 		if(json_object_object_get_ex(json_object_array_get_idx(authObj, 0), "error", &errorObj)) {
 			json_object* errorTypeObj;
 			if(json_object_object_get_ex(errorObj, "type", &errorTypeObj)) {
-				fprintf(stderr, "Error type: %d\n", json_object_get_int(errorTypeObj));
 				if(json_object_get_int(errorTypeObj) == 101) {
 					retry = true;
 				}
@@ -159,7 +158,7 @@ bool HubDevice::updateLights() {
 
 			HueLight* light = new HueLight(val, atoi(key));
 			if(!light->valid()) {
-				fprintf(stderr, "Light is not valid\n");
+				std::cerr << "Light " << id << " is not valid\n";
 			}
 
 			mLights.push_back(light);

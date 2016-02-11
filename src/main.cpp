@@ -32,9 +32,9 @@ enum ArgTypes {
 static void printHelp() {
 	std::cerr << "huelights [options]\n"
 	<< "Options" << "\n"
-	<< "\t" << "--help" << "\n"
+	<< "\t" << "-h, --help" << "\n"
 	<< "\t\t" << "Show this help text" << "\n"
-	<< "\t" << "--config <file>" << "\n"
+	<< "\t" << "-c, --config <file>" << "\n"
 	<< "\t\t" << "Specify the config file (defaults to /etc/huelights)" << "\n"
 	<< "\t" << "--hub <id>" << "\n"
 	<< "\t\t" << "Specify the hub device" << "\n"
@@ -48,15 +48,15 @@ static void printHelp() {
 	<< "\t\t" << "in the range 0-254 (where 0 is off and 254 is the brightest)" << "\n"
 	<< "\n"
 
-	<< "\t" << "--daemon" << "\n"
+	<< "\t" << "-d, --daemon" << "\n"
 	<< "\t\t" << "Run in daemon mode" << "\n"
 	<< "\t\t" << "This will run all tasks in the config file" << "\n"
 
-	<< "\t" << "--authorize" << "\n"
+	<< "\t" << "-a, --authorize" << "\n"
 	<< "\t\t" << "Authorize a new hub device" << "\n"
 	<< "\t\t" << "If you do not specify the hub with --hub you will be prompted" << "\n"
 
-	<< "\t" << "--list <type>" << "\n"
+	<< "\t" << "-l, --list <type>" << "\n"
 	<< "\t\t" << "<type> can be one of" << "\n"
 	<< "\t\t" << "hubs" << "\n"
 	<< "\t\t\t" << "List the available hubs on the network" << "\n"
@@ -450,7 +450,7 @@ int main(int argc, char** argv) {
 		if(arg == "--help") {
 			printHelp();
 			return -1;
-		} else if(arg == "--config") {
+		} else if(arg == "-c" || arg == "--config") {
 			if(i + 1 >= argc) {
 				printHelp();
 				return -1;
@@ -501,11 +501,11 @@ int main(int argc, char** argv) {
 			i++;
 		} else if(arg == "--json") {
 			argParams.insert(std::make_pair<ArgTypes, std::string>(ArgTypeListDisplay, "json"));
-		} else if(arg == "--daemon") {
+		} else if(arg == "-d" || arg == "--daemon") {
 			argCommand = ArgCommandDaemon;
-		} else if(arg == "--authorize") {
+		} else if(arg == "-a" || arg == "--authorize") {
 			argCommand = ArgCommandAuthorize;
-		} else if(arg == "--list") {
+		} else if(arg == "-l" || arg == "--list") {
 			if(i + 1 >= argc) {
 				printHelp();
 				return -1;

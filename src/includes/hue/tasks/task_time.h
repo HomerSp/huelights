@@ -27,6 +27,7 @@ public:
 	HueTaskTime(const HueConfig& config, const HueConfigSection &taskConfig, const HubDevice& device);
 
 	virtual bool execute(bool& fatalError);
+	virtual void reset();
 
 	virtual void updateTrigger(time_t now);
 

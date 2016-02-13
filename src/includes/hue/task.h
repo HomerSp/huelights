@@ -21,6 +21,7 @@ public:
 	virtual void updateTrigger(time_t now) = 0;
 
 	bool update(const HueConfig& config, const HueConfigSection& taskConfig);
+	virtual void reset();
 
 	bool valid() const {
 		return mValid;

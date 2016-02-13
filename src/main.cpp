@@ -74,6 +74,7 @@ static void printHelp() {
 static bool runDaemon(HueConfig& config, const std::map<ArgTypes, std::string> &params, bool& showHelp) {
 	std::vector<HubDevice* > devices;
 
+	time_t lastTime = time(NULL);
 	bool error = false;
 	while(!error) {
 		// Calculate when the next minute starts
@@ -104,9 +105,16 @@ static bool runDaemon(HueConfig& config, const std::map<ArgTypes, std::string> &
 
 		for(std::vector<HubDevice*>::const_iterator deviceIt = devices.begin(); deviceIt != devices.end(); ++deviceIt) {
 			for(std::vector<HueTask*>::const_iterator it = (*deviceIt)->tasks().begin(); it != (*deviceIt)->tasks().end(); ++it) {
+				// We're going back in time, call the troops (reset the task)!
+				if(start < lastTime || start - lastTime > 60*2) {
+					(*it)->reset();
+				}
+
 				(*it)->execute(error);
 			}
 		}
+
+		lastTime = time(NULL);
 	}
 
 	for(std::vector<HubDevice*>::iterator it = devices.begin(); it != devices.end(); ++it) {

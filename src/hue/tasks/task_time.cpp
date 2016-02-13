@@ -18,10 +18,9 @@ HueTaskTime::HueTaskTime(const HueConfig& config, const HueConfigSection &taskCo
 		sSupportedMethods.insert(std::pair<std::string, HueTaskTime::Method>("recurring", HueTaskTime::MethodRecurring));
 	}
 
-	memset(&mTime, 0, sizeof(struct tm));
+	memset(&mTime, 0xFF, sizeof(struct tm));
 
 	HueTask::update(config, taskConfig);
-	updateTrigger(time(NULL));
 }
 
 bool HueTaskTime::execute(bool& fatalError) {
@@ -29,7 +28,7 @@ bool HueTaskTime::execute(bool& fatalError) {
 	time(&now);
 
 	int64_t diff = -1;
-	if(mTime.tm_year > 0) {
+	if(mTime.tm_year >= 0) {
 		diff = difftime(now, mktime(&mTime));
 	}
 
@@ -66,6 +65,8 @@ void HueTaskTime::updateTrigger(time_t now) {
 		return;
 	}
 
+	bool wasSet = mTime.tm_year >= 0;
+
 	struct tm* nowTm = localtime(&now);
 
 	mTime.tm_year = nowTm->tm_year;
@@ -95,7 +96,9 @@ void HueTaskTime::updateTrigger(time_t now) {
 			}
 
 			int64_t diff = difftime(now, mktime(&mTime));
-			if(diff <= 0) {
+
+			// If the time was not set previously, we may have a trigger on the current minute, otherwise check if the difference is >= 30 seconds.
+			if((!wasSet && diff <= 0) || (diff <= -30)) {
 				break;
 			}
 
@@ -110,6 +113,11 @@ void HueTaskTime::updateTrigger(time_t now) {
 			mTime.tm_wday = 0;
 		}
 	}
+
+	char buf[80];
+	strftime(buf, 80, "%Y-%m-%d %H:%M", &mTime);
+
+	std::cout << "Triggering " << name() << " at " << buf << "\n";
 }
 
 bool HueTaskTime::update(const HueConfigSection& triggerConfig) {
@@ -122,11 +130,20 @@ bool HueTaskTime::update(const HueConfigSection& triggerConfig) {
 
 	time_t timeBefore = mktime(&mTime);
 
+	struct tm newTime;
+	memset(&newTime, 0xFF, sizeof(struct tm));
 	switch(mTaskMethod) {
 		case HueTaskTime::MethodFixed: {
-			if (!strptime(triggerConfig.value("time").c_str(), "%Y-%m-%d %H:%M", &mTime)) {
+			if (!strptime(triggerConfig.value("time").c_str(), "%Y-%m-%d %H:%M", &newTime)) {
 				return false;
 			}
+
+			mTime.tm_isdst = newTime.tm_isdst;
+			mTime.tm_year = newTime.tm_year;
+			mTime.tm_mon = newTime.tm_mon;
+			mTime.tm_mday = newTime.tm_mday;
+			mTime.tm_hour = newTime.tm_hour;
+			mTime.tm_min = newTime.tm_min;
 
 			break;
 		}
@@ -138,8 +155,14 @@ bool HueTaskTime::update(const HueConfigSection& triggerConfig) {
 				mTimeSun = SunRise;
 			} else if(timeStr == "sunset") {
 				mTimeSun = SunSet;
-			} else if (!strptime(timeStr.c_str(), "%H:%M", &mTime)) {
+			} else if (!strptime(timeStr.c_str(), "%H:%M", &newTime)) {
 				return false;
+			}
+
+			if(newTime.tm_hour >= 0) {
+				mTime.tm_isdst = newTime.tm_isdst;
+				mTime.tm_hour = newTime.tm_hour;
+				mTime.tm_min = newTime.tm_min;
 			}
 
 			if(triggerConfig.hasKey("position")) {
@@ -175,11 +198,18 @@ bool HueTaskTime::update(const HueConfigSection& triggerConfig) {
 
 	// Only update trigger time when the time has actually changed.
 	int64_t diff = difftime(timeBefore, mktime(&mTime));
-	if(diff != 0) {
+	if(mTime.tm_year < 0 || diff != 0) {
 		updateTrigger(time(NULL));
 	}
 
 	return true;
+}
+
+void HueTaskTime::reset() {
+	HueTask::reset();
+
+	mTime.tm_year = -1;
+	updateTrigger(time(NULL));
 }
 
 void HueTaskTime::toJsonInt(json_object* obj) const {

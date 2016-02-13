@@ -120,6 +120,10 @@ bool HueTask::update(const HueConfig& config, const HueConfigSection& taskConfig
 	return true;
 }
 
+void HueTask::reset() {
+
+}
+
 void HueTask::generateID() {
 	std::ostringstream ret;
 	ret << std::setfill('0') << std::setw(2) << std::hex

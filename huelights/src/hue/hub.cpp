@@ -1,6 +1,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <sstream>
+#include "logger.h"
 #include "hue/hub.h"
 #include "hue/light.h"
 #include "hue/task.h"
@@ -158,7 +159,7 @@ bool HubDevice::updateLights() {
 
 			HueLight* light = new HueLight(val, atoi(key));
 			if(!light->valid()) {
-				std::cerr << "Light " << id << " is not valid\n";
+				Logger::error() << "Light " << id << " is not valid\n";
 			}
 
 			mLights.push_back(light);

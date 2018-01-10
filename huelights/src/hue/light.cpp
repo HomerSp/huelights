@@ -1,5 +1,6 @@
 #include <sstream>
 #include <cstdio>
+#include "logger.h"
 #include "hue/light.h" 
 #include "connection.h"
 
@@ -106,11 +107,14 @@ void HueLight::update(json_object* lightObj, int index) {
 }
 
 bool HueLight::write(const HubDevice& device) {
+	Logger::debug() << "Write '" << mName << "'\n";
 	if(mNewState == NULL) {
+		Logger::warning() << "New state is NULL\n";
 		return false;
 	}
 
 	if(*state() == *newState()) {
+		Logger::error() << "Not updating state for " << mName << " since the old and new are identical\n";
 		return false;
 	}
 
@@ -134,9 +138,13 @@ bool HueLight::write(const HubDevice& device) {
 		<< mIndex
 		<< "/state";
 
+	Logger::debug() << "Writing state for '" << mName << "' to '" << url.str() << "'\n";
+
 	//url << "http://192.168.1.101";
 	json_object* output;
 	if(!putJson(url.str(), obj, &output)) {
+		Logger::error() << "Could not write state for '" << mName << "'' to '" << url.str() << "'\n";
+
 		json_object_put(obj);
 		return false;
 	}
@@ -150,7 +158,7 @@ bool HueLight::write(const HubDevice& device) {
 	}
 
 	if(!success) {
-		std::cerr << "Failed to set some parameters for light " << mID << "\n";
+		Logger::warning() << "Failed to set some parameters for light " << mID << "\n";
 	}
 
 	json_object_put(output);

@@ -1,6 +1,7 @@
 #include <sstream>
 #include <cstdlib>
 #include <iomanip>
+#include "logger.h"
 #include "hue/task.h" 
 #include "hue/tasks/task_time.h"
 #include "utils.h"
@@ -35,7 +36,7 @@ HueTask* HueTask::fromConfig(const HueConfig& config, const HueConfigSection &ta
 	HueTask* ret = NULL;
 	GET_TASK_TYPE("time", HueTaskTime);
 	if(ret == NULL) {
-		std::cerr << "Unknown task type " << type << "\n";
+		Logger::error() << "Unknown task type " << type << "\n";
 
 		return NULL;
 	}
@@ -92,7 +93,7 @@ bool HueTask::update(const HueConfig& config, const HueConfigSection& taskConfig
 		if(light != NULL) {
 			mLights.push_back(light);
 		} else {
-			std::cerr << "Task (" << mID << ") Failed to find light " << *it << ", please check your configuration!\n";
+			Logger::error() << "Task (" << mID << ") Failed to find light " << *it << ", please check your configuration!\n";
 			return false;
 		}
 
@@ -135,7 +136,13 @@ void HueTask::generateID() {
 	mID = ret.str();
 }
 
+bool HueTask::executeNow() {
+	return trigger();
+}
+
 bool HueTask::trigger() {
+	Logger::debug() << "Trigger " << mID << ", lights " << mLights.size() << "\n";
+
 	for(std::vector<HueLight*>::const_iterator it = mLights.begin(); it != mLights.end(); ++it) {
 		mState.copyTo((*it)->newState());
 
@@ -144,7 +151,9 @@ bool HueTask::trigger() {
 			(*it)->newState()->toggle();
 		}
 
-		(*it)->write(mDevice);
+		if(!(*it)->write(mDevice)) {
+			return false;
+		}
 	}
 
 	return true;

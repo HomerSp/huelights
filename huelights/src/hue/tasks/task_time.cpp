@@ -1,6 +1,7 @@
 #include <sstream>
 #include <cstring>
 #include <unistd.h>
+#include "logger.h"
 #include "hue/tasks/task_time.h"
 #include "utils.h"
 #include "sunposition.h"
@@ -35,8 +36,9 @@ bool HueTaskTime::execute(bool& fatalError) {
 	switch(mTaskMethod) {
 		case MethodFixed: {
 			if(diff >= 0 && diff < 60) {
-				std::cout << "TRIGGER " << id() << "!\n";
-				trigger();
+				Logger::info() << "Trigger " << id() << "!\n";
+				fatalError = trigger();
+				return true;
 			}
 
 			break;
@@ -46,8 +48,9 @@ bool HueTaskTime::execute(bool& fatalError) {
 			if(diff >= 0 && diff < 60) {
 				updateTrigger(now);
 
-				std::cout << "TRIGGER " << id() << "!\n";
-				trigger();
+				Logger::info() << "Trigger " << id() << "!\n";
+				fatalError = trigger();
+				return true;
 			}
 
 			break;
@@ -57,7 +60,7 @@ bool HueTaskTime::execute(bool& fatalError) {
 		}
 	}
  
-	return true;
+	return false;
 }
 
 void HueTaskTime::updateTrigger(time_t now) {
@@ -117,7 +120,7 @@ void HueTaskTime::updateTrigger(time_t now) {
 	char buf[80];
 	strftime(buf, 80, "%Y-%m-%d %H:%M", &mTime);
 
-	std::cout << "Triggering " << name() << " at " << buf << "\n";
+	Logger::debug() << "Triggering " << name() << " at " << buf << "\n";
 }
 
 bool HueTaskTime::update(const HueConfigSection& triggerConfig) {

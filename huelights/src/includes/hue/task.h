@@ -20,6 +20,8 @@ public:
 	virtual bool execute(bool& fatalError) = 0;
 	virtual void updateTrigger(time_t now) = 0;
 
+	bool executeNow();
+
 	bool update(const HueConfig& config, const HueConfigSection& taskConfig);
 	virtual void reset();
 

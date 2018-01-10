@@ -1,9 +1,11 @@
 #include <iostream>
+#include <algorithm>
 #include <cstdlib>
 #include <cstdio>
 #include <ctime>
 #include <unistd.h>
 
+#include "logger.h"
 #include "hue/hue.h"
 
 enum ArgCommand {
@@ -30,7 +32,7 @@ enum ArgTypes {
 };
 
 static void printHelp() {
-	std::cerr << "huelights [options]\n"
+	Logger::error() << "huelights [options]\n"
 	<< "Options" << "\n"
 	<< "\t" << "-h, --help" << "\n"
 	<< "\t\t" << "Show this help text" << "\n"
@@ -74,9 +76,15 @@ static void printHelp() {
 static bool runDaemon(HueConfig& config, const std::map<ArgTypes, std::string> &params, bool& showHelp) {
 	std::vector<HubDevice* > devices;
 
+	Logger::enable();
+	Logger::info() << "\n";
+	Logger::info() << "Starting daemon\n";
+
+	std::map<std::string, int> failedTasks;
+	std::vector<std::string> permanentFailedTasks;
 	time_t lastTime = time(NULL);
-	bool error = false;
-	while(!error) {
+	bool running = true;
+	while(running) {
 		// Calculate when the next minute starts
 		time_t start = time(NULL);
 
@@ -93,13 +101,17 @@ static bool runDaemon(HueConfig& config, const std::map<ArgTypes, std::string> &
 		bool parseFailure = false;
 		if(!config.parse(parseFailure)) {
 			if(parseFailure) {
-				std::cerr << "Failed to parse config file!\n";
+				Logger::error() << "Failed to parse config file!\n";
 			} else {
-				std::cerr << "Failed to read config file!\n";
+				Logger::error() << "Failed to read config file!\n";
 			}
+
+			lastTime = time(NULL);
+			continue;
 		}
 
 		if(!Hue::getHubDevices(devices, config)) {
+			lastTime = time(NULL);
 			continue;
 		}
 
@@ -110,7 +122,35 @@ static bool runDaemon(HueConfig& config, const std::map<ArgTypes, std::string> &
 					(*it)->reset();
 				}
 
-				(*it)->execute(error);
+				std::string id = (*it)->id();
+				bool result = true;
+				if(std::find(permanentFailedTasks.begin(), permanentFailedTasks.end(), id) == permanentFailedTasks.end() && failedTasks.find(id) != failedTasks.end()) {
+					result = (*it)->executeNow();
+					if(result) {
+						failedTasks.erase(id);
+					} else if(failedTasks.find(id)->second >= 4) {
+						permanentFailedTasks.push_back(id);
+					}
+				}
+
+				bool done = true;
+				bool error = false;
+				if(result) {
+					done = (*it)->execute(error);
+					if(done && !error) {
+						permanentFailedTasks.erase(std::find(permanentFailedTasks.begin(), permanentFailedTasks.end(), id));
+						failedTasks.erase(id);
+					}
+				}
+
+				if(!result || (done && error)) {
+					int retryCount = 1;
+					if(failedTasks.find((*it)->id()) != failedTasks.end()) {
+						retryCount += failedTasks.find((*it)->id())->second;
+					}
+
+					failedTasks[(*it)->id()] = retryCount;
+				}
 			}
 		}
 
@@ -132,9 +172,9 @@ static bool runAuthorize(HueConfig& config, const std::map<ArgTypes, std::string
 		std::vector<HubDevice* > devices;
 		if(Hue::getHubDevices(devices, config)) {
 			if(devices.size() >= 1) {
-				std::cout << "Choose which device you want to authorize (0-" << (devices.size() - 1) << "):\n";
+				Logger::info() << "Choose which device you want to authorize (0-" << (devices.size() - 1) << "):\n";
 				for(size_t i = 0; i < devices.size(); i++) {
-					std::cout << "[" << i << "] " << devices[i]->name() << " (" << devices[i]->ip() << ")\n";
+					Logger::info() << "[" << i << "] " << devices[i]->name() << " (" << devices[i]->ip() << ")\n";
 				}
 
 				int index = -1;
@@ -147,7 +187,7 @@ static bool runAuthorize(HueConfig& config, const std::map<ArgTypes, std::string
 					index = strtol(line.c_str(), &end, 10);
 					if(*end || index < 0 || index >= (int)devices.size()) {
 						index = -1;
-						std::cerr << "Please enter a valid number:\n";
+						Logger::error() << "Please enter a valid number:\n";
 					}
 				}
 				
@@ -169,39 +209,39 @@ static bool runAuthorize(HueConfig& config, const std::map<ArgTypes, std::string
 		return false;
 	}
 
-	std::cout << "Authorizing device " << device->name() << "\n";
-	std::cout << "Press the link button on the hub before the progress bar fills...\n";
+	Logger::info() << "Authorizing device " << device->name() << "\n";
+	Logger::info() << "Press the link button on the hub before the progress bar fills...\n";
 
-	std::cout << "[";
+	Logger::info() << "[";
 	for(size_t i = 0; i < 20; i++) {
-		std::cout << " ";
+		Logger::info() << " ";
 	}
-	std::cout << "]" << std::flush;
+	Logger::info() << "]" << std::flush;
 
 	bool auth = false, retry = true;
 	size_t times = 0;
 	while(retry && times < 20) {
 		if((auth = device->authorize(retry))) {
-			std::cout << "\rDevice authorized!\n";
+			Logger::info() << "\rDevice authorized!\n";
 			break;
 		}
 
 		sleep(1);
 		times++;
 
-		std::cout << "\r[";
+		Logger::info() << "\r[";
 		for(size_t i = 0; i < 20; i++) {
 			if(i <= times) {
-				std::cout << "#";
+				Logger::info() << "#";
 			} else {
-				std::cout << " ";
+				Logger::info() << " ";
 			}
 		}
-		std::cout << "]" << std::flush;
+		Logger::info() << "]" << std::flush;
 	}
 
 	if(times == 20) {
-		std::cout << "\n";
+		Logger::info() << "\n";
 	}
 
 	bool ret = false;
@@ -225,7 +265,7 @@ static bool runLight(HueConfig& config, const std::map<ArgTypes, std::string> &p
 	if(params.count(ArgTypeHub) != 0) {
 		device = Hue::getHubDevice(params.at(ArgTypeHub), config);
 		if(device == NULL) {
-			std::cerr << "Error: Failed to find hub " << params.at(ArgTypeHub) << "\n";
+			Logger::error() << "Error: Failed to find hub " << params.at(ArgTypeHub) << "\n";
 			return false;
 		}
 	} else {
@@ -242,19 +282,19 @@ static bool runLight(HueConfig& config, const std::map<ArgTypes, std::string> &p
 		}
 
 		if(device == NULL) {
-			std::cerr << "Error: Failed to find the device for light " << params.at(ArgTypeLight) << "\n";
+			Logger::error() << "Error: Failed to find the device for light " << params.at(ArgTypeLight) << "\n";
 			return false;
 		}
 	}
 
 	if(!device->isAuthorized()) {
-		std::cerr << "Error: Device " << device->name() << " is not authorized!\n";
+		Logger::error() << "Error: Device " << device->name() << " is not authorized!\n";
 		return false;
 	}
 
 	HueLight* light = device->light(params.at(ArgTypeLight));
 	if(light == NULL) {
-		std::cerr << "Error: Failed to find light " << params.at(ArgTypeLight) << "\n";
+		Logger::error() << "Error: Failed to find light " << params.at(ArgTypeLight) << "\n";
 
 		delete device;
 		return false;
@@ -272,7 +312,7 @@ static bool runLight(HueConfig& config, const std::map<ArgTypes, std::string> &p
 		} else if(state == "toggle") {
 			lightState.toggle();
 		} else {
-			std::cerr << "Error: Unknown light state " << state << "\n";
+			Logger::error() << "Error: Unknown light state " << state << "\n";
 			showHelp = true;
 
 			delete light;
@@ -310,14 +350,14 @@ static bool runList(HueConfig& config, const std::map<ArgTypes, std::string> &pa
 	if(type == "hubs") {
 		std::vector<HubDevice* > devices;
 		if(!Hue::getHubDevices(devices, config)) {
-			std::cerr << "Error: Failed to get devices\n";
+			Logger::error() << "Error: Failed to get devices\n";
 			return false;
 		}
 
 		switch(listType) {
 			case ArgListTypeNormal: {
 				for(std::vector<HubDevice*>::const_iterator it = devices.begin(); it != devices.end(); ++it) {
-					std::cout << (*it)->toString() << "\n\n";
+					Logger::info() << (*it)->toString() << "\n\n";
 				}
 
 				break;
@@ -328,7 +368,7 @@ static bool runList(HueConfig& config, const std::map<ArgTypes, std::string> &pa
 					json_object_array_add(arrObj, (*it)->toJson());
 				}
 
-				std::cout << json_object_to_json_string_ext(arrObj, JSON_C_TO_STRING_PLAIN);
+				Logger::info() << json_object_to_json_string_ext(arrObj, JSON_C_TO_STRING_PLAIN);
 				json_object_put(arrObj);
 
 				break;
@@ -343,14 +383,14 @@ static bool runList(HueConfig& config, const std::map<ArgTypes, std::string> &pa
 		if(params.count(ArgTypeHub) != 0) {
 			HubDevice* device = Hue::getHubDevice(params.at(ArgTypeHub), config);
 			if(device == NULL) {
-				std::cerr << "Error: Failed to find device " << params.at(ArgTypeHub) << "\n";
+				Logger::error() << "Error: Failed to find device " << params.at(ArgTypeHub) << "\n";
 				return false;
 			}
 
 			devices.push_back(device);
 		} else {
 			if(!Hue::getHubDevices(devices, config)) {
-				std::cerr << "Error: Failed to get devices\n";
+				Logger::error() << "Error: Failed to get devices\n";
 				return false;
 			}
 		}
@@ -363,7 +403,7 @@ static bool runList(HueConfig& config, const std::map<ArgTypes, std::string> &pa
 			switch(listType) {
 				case ArgListTypeNormal: {
 					for(std::vector<HueLight*>::const_iterator it = (*devIt)->lights().begin(); it != (*devIt)->lights().end(); ++it) {
-						std::cout << (*it)->toString() << "\n\n";
+						Logger::info() << (*it)->toString() << "\n\n";
 					}
 
 					break;
@@ -374,7 +414,7 @@ static bool runList(HueConfig& config, const std::map<ArgTypes, std::string> &pa
 						json_object_array_add(arrObj, (*it)->toJson());
 					}
 
-					std::cout << json_object_to_json_string_ext(arrObj, JSON_C_TO_STRING_PLAIN);
+					Logger::info() << json_object_to_json_string_ext(arrObj, JSON_C_TO_STRING_PLAIN);
 					json_object_put(arrObj);
 
 					break;
@@ -390,14 +430,14 @@ static bool runList(HueConfig& config, const std::map<ArgTypes, std::string> &pa
 		if(params.count(ArgTypeHub) != 0) {
 			HubDevice* device = Hue::getHubDevice(params.at(ArgTypeHub), config);
 			if(device == NULL) {
-				std::cerr << "Error: Failed to get device " << params.at(ArgTypeHub) << "\n";
+				Logger::error() << "Error: Failed to get device " << params.at(ArgTypeHub) << "\n";
 				return false;
 			}
 
 			devices.push_back(device);
 		} else {
 			if(!Hue::getHubDevices(devices, config)) {
-				std::cerr << "Error: Failed to get devices\n";
+				Logger::error() << "Error: Failed to get devices\n";
 				return false;
 			}
 		}
@@ -409,7 +449,7 @@ static bool runList(HueConfig& config, const std::map<ArgTypes, std::string> &pa
 				for(std::vector<HubDevice*>::const_iterator it = devices.begin(); it != devices.end(); ++it) {
 					for(std::vector<HueTask*>::const_iterator taskIt = (*it)->tasks().begin(); taskIt != (*it)->tasks().end(); ++taskIt) {
 						(*taskIt)->updateTrigger(now);
-						std::cout << (*taskIt)->toString() << "\n\n";
+						Logger::info() << (*taskIt)->toString() << "\n\n";
 					}
 				}
 
@@ -424,7 +464,7 @@ static bool runList(HueConfig& config, const std::map<ArgTypes, std::string> &pa
 					}
 				}
 
-				std::cout << json_object_to_json_string_ext(arrObj, JSON_C_TO_STRING_PLAIN);
+				Logger::info() << json_object_to_json_string_ext(arrObj, JSON_C_TO_STRING_PLAIN);
 				json_object_put(arrObj);
 
 				break;
@@ -492,7 +532,7 @@ int main(int argc, char** argv) {
 			char* p = NULL;
 			int val =strtol(argv[i + 1], &p, 10);
 			if(*p != 0 || val < 0 || val > 254) {
-				std::cerr << argv[i + 1] << " is not a valid number (must be within 0-254)\n";
+				Logger::warning() << argv[i + 1] << " is not a valid number (must be within 0-254)\n";
 				printHelp();
 				return -1;
 			}
@@ -523,7 +563,7 @@ int main(int argc, char** argv) {
 			argParams.insert(std::make_pair<ArgTypes, std::string>(ArgTypeListType, std::string(argv[i + 1])));
 			i++;
 		} else {
-			std::cerr << "Error: Unknown option " << argv[i] << "\n";
+			Logger::error() << "Error: Unknown option " << argv[i] << "\n";
 			printHelp();
 			return -1;
 		}
@@ -539,7 +579,7 @@ int main(int argc, char** argv) {
 	bool parseFailure = false;
 	if(!hueConfig.parse(parseFailure)) {
 		if(parseFailure) {
-			std::cerr << "Warning: Failed to parse config file " << configPath << ", exiting...\n";
+			Logger::error() << "Warning: Failed to parse config file " << configPath << ", exiting...\n";
 			return -1;
 		}
 	}
@@ -553,7 +593,7 @@ int main(int argc, char** argv) {
 					return -1;
 				}
 
-				std::cerr << "Error: Daemon command failed\n";
+				Logger::error() << "Error: Daemon command failed\n";
 			}
 
 			break;
@@ -565,7 +605,7 @@ int main(int argc, char** argv) {
 					return -1;
 				}
 
-				std::cerr << "Error: Authorization command failed\n";
+				Logger::error() << "Error: Authorization command failed\n";
 			}
 
 			break;
@@ -577,7 +617,7 @@ int main(int argc, char** argv) {
 					return -1;
 				}
 
-				std::cerr << "Error: Light command failed\n";
+				Logger::error() << "Error: Light command failed\n";
 			}
 
 			break;
@@ -589,7 +629,7 @@ int main(int argc, char** argv) {
 					return -1;
 				}
 
-				std::cerr << "Error: List command failed\n";
+				Logger::error() << "Error: List command failed\n";
 			}
 
 			break;

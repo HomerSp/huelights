@@ -70,6 +70,8 @@ void HueTaskTime::updateTrigger(time_t now) {
 
 	bool wasSet = mTime.tm_year >= 0;
 
+	time_t timeBefore = mktime(&mTime);
+
 	struct tm* nowTm = localtime(&now);
 
 	mTime.tm_year = nowTm->tm_year;
@@ -84,6 +86,8 @@ void HueTaskTime::updateTrigger(time_t now) {
 	for(int i = 0; i < 14; i++) {
 		if(mRepeatDays.size() == 0 || mRepeatDays.find(mTime.tm_wday) != mRepeatDays.end()) {
 			if(mTimeSun != SunNone) {
+				mTime.tm_hour = mTime.tm_min = 0;
+
 				std::pair<time_t, time_t> sunPosition;
 				SunPosition::getTimes(sunPosition, mktime(&mTime), mPosition.first, mPosition.second);
 
@@ -99,14 +103,12 @@ void HueTaskTime::updateTrigger(time_t now) {
 			}
 
 			int64_t diff = difftime(now, mktime(&mTime));
+			int64_t diffBefore = difftime(timeBefore, mktime(&mTime));
 
-			// If the time was not set previously, we may have a trigger on the current minute, otherwise check if the difference is >= 30 seconds.
-			if((!wasSet && diff <= 0) || (diff <= -30)) {
+			// If the time was not set previously, we may have a trigger on the current minute, otherwise check if the difference is >= 30 seconds
+			// and that it's on a different day compared to the old time.
+			if((!wasSet && diff <= 0) || (diff <= -30 && diffBefore != 0)) {
 				break;
-			}
-
-			if(mTimeSun != SunNone) {
-				mTime.tm_hour = mTime.tm_min = 0;
 			}
 		}
 

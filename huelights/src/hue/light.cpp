@@ -114,8 +114,8 @@ bool HueLight::write(const HubDevice& device) {
 	}
 
 	if(*state() == *newState()) {
-		Logger::error() << "Not updating state for " << mName << " since the old and new are identical\n";
-		return false;
+		Logger::warning() << "Not updating state for " << mName << " since the old and new are identical\n";
+		return true;
 	}
 
 	json_object* obj = json_object_new_object();
